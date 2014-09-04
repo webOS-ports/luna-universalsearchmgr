@@ -5,7 +5,7 @@
 				 					"category": "search",
 				 					"displayName": "Google",
 				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-google.png",
-				 					"loc_url":"http://www.google.com/search?q=#{searchTerms}",
+				 					"loc_url":"https://www.google.com/search?q=#{searchTerms}",
 				 					"type":"web",
 				 					"enabled":true,
 				 					"version":2
@@ -15,16 +15,16 @@
 				 					"category": "search",
 				 					"displayName": "Wikipedia",
 				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-wikipedia.png",
-				 					"loc_url":"http://en.wikipedia.org/wiki/Special:Search?search=#{searchTerms}",
+				 					"loc_url":"https://en.wikipedia.org/wiki/Special:Search?search=#{searchTerms}",
 				 					"type":"web",
 				 					"enabled":true
 				 				},
 				 				{ 
-				 					"id": "twitter", 
+				 					"id": "duckduckgo", 
 				 					"category": "search",
-				 					"displayName": "Twitter",
-				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-twitter.png",
-				 					"loc_url":"http://search.twitter.com/search?q=#{searchTerms}",
+				 					"displayName": "DuckDuckGo",
+				 					"iconFilePath":"/usr/lib/luna/system/luna-applauncher/images/search-icon-duckduckgo.png",
+				 					"loc_url":"https://duckduckgo.com/?q={$query}",
 				 					"type":"web",
 				 					"enabled":true
 				 				},
@@ -35,7 +35,7 @@
 									"iconFilePath": "/usr/lib/luna/system/luna-applauncher/images/search-icon-cnn.png",
 									"id": "cnn",
 									"type": "web",
-									"loc_url": "http://www.cnn.com/search/?query=#{searchTerms}"
+									"loc_url": "http://www.cnn.com/search/?query=#{searchTerms"}
 								},
 								{
 									"category": "search",
@@ -44,7 +44,7 @@
 									"iconFilePath": "/usr/lib/luna/system/luna-applauncher/images/search-icon-amazon.png",
 									"id": "amazon",
 									"type": "web",
-									"loc_url": "http://www.amazon.com/s/?k=#{searchTerms}",
+									"loc_url": "https://www.amazon.com/s/?k=#{searchTerms}",
 									"version":2
 								},
 								{
