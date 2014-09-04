@@ -35,7 +35,7 @@
 									"iconFilePath": "/usr/lib/luna/system/luna-applauncher/images/search-icon-cnn.png",
 									"id": "cnn",
 									"type": "web",
-									"loc_url": "http://www.cnn.com/search/?query=#{searchTerms"}
+									"loc_url": "http://www.cnn.com/search/?query=#{searchTerms}"
 								},
 								{
 									"category": "search",
