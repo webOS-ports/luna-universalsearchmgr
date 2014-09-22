@@ -5,7 +5,7 @@
 				 					"category": "search",
 				 					"displayName": "Google",
 				 					"iconFilePath":"/usr/palm/applications/com.palm.launcher/images/search-icon-google.png",
-				 					"loc_url":"https://www.google.com/search?q=#{searchTerms}",
+				 					"url":"https://www.google.com/search?q=#{searchTerms}",
 				 					"type":"web",
 				 					"enabled":true,
 				 					"version":2
@@ -15,7 +15,7 @@
 				 					"category": "search",
 				 					"displayName": "Wikipedia",
 				 					"iconFilePath":"/usr/palm/applications/com.palm.launcher/images/search-icon-wikipedia.png",
-				 					"loc_url":"https://en.wikipedia.org/wiki/Special:Search?search=#{searchTerms}",
+				 					"url":"https://en.wikipedia.org/wiki/Special:Search?search=#{searchTerms}",
 				 					"type":"web",
 				 					"enabled":true
 				 				},
@@ -24,7 +24,7 @@
 				 					"category": "search",
 				 					"displayName": "DuckDuckGo",
 				 					"iconFilePath":"/usr/palm/applications/com.palm.launcher/images/search-icon-duckduckgo.png",
-				 					"loc_url":"https://www.duckduckgo.com/?q=#{searchTerms}",
+				 					"url":"https://www.duckduckgo.com/?q=#{searchTerms}",
 				 					"type":"web",
 				 					"enabled":true
 				 				},
@@ -35,7 +35,7 @@
 									"iconFilePath": "/usr/palm/applications/com.palm.launcher/images/search-icon-cnn.png",
 									"id": "cnn",
 									"type": "web",
-									"loc_url": "http://www.cnn.com/search/?query=#{searchTerms}"
+									"url": "http://www.cnn.com/search/?query=#{searchTerms}"
 								},
 								{
 									"category": "search",
@@ -44,7 +44,7 @@
 									"iconFilePath": "/usr/palm/applications/com.palm.launcher/images/search-icon-amazon.png",
 									"id": "amazon",
 									"type": "web",
-									"loc_url": "https://www.amazon.com/s/?k=#{searchTerms}",
+									"url": "https://www.amazon.com/s/?k=#{searchTerms}",
 									"version":2
 								},
 								{
@@ -54,7 +54,7 @@
 									"iconFilePath": "/usr/palm/applications/com.palm.launcher/images/search-icon-imdb.png",
 									"id": "imdb",
 									"type": "web",
-									"loc_url": "http://www.imdb.com/find?q=#{searchTerms}",
+									"url": "http://www.imdb.com/find?q=#{searchTerms}",
 									"version":2
 								}
                			],
