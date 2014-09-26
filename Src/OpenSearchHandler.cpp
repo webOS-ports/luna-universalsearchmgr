@@ -235,7 +235,7 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
 			    xmlFree (value);
 
 			    templateUrl = xmlStrcat (templateUrl, buf);
-			    xmlFree (buf);
+			    delete [] buf;
 
 			}
 		    }
@@ -296,6 +296,7 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
     else {
     	info.imageData = GENRIC_ICON;
     }
+    g_free(uriScheme);
     }
     else {
     	info.imageData = GENRIC_ICON;
@@ -365,7 +366,8 @@ const char* OpenSearchHandler::parseImage(const std::string& id, const std::stri
 	
 	fflush(ofile);
 	fclose(ofile);
-	
+
+	g_free(imgData);
 	imgData = NULL;
 
 	return fileName.c_str();
@@ -373,7 +375,7 @@ const char* OpenSearchHandler::parseImage(const std::string& id, const std::stri
 
 gchar* OpenSearchHandler::unescapeString (const gchar *escaped, gsize& size)
 {
-	gchar* res = (gchar*) malloc(size);
+	gchar* res = (gchar*) g_malloc(size);
 	int resSize = 0;
 	       
 	const gchar* src = escaped;
@@ -389,7 +391,7 @@ gchar* OpenSearchHandler::unescapeString (const gchar *escaped, gsize& size)
 	    else {
 	    	if (size < 3) {
 	    		g_debug("data buffer too short");
-	    		free(res);
+	    		g_free(res);
 	    		size = 0;
 	    		return 0;
 	    	}
@@ -399,7 +401,7 @@ gchar* OpenSearchHandler::unescapeString (const gchar *escaped, gsize& size)
             int b = g_ascii_xdigit_value(*src++);
             if (a < 0 || b < 0) {
                  g_debug("invalid characters encountered in data buffer");
-                 free(res);
+                 g_free(res);
                  size = 0;
                  return 0;
             }

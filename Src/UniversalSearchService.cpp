@@ -2471,7 +2471,7 @@ static bool cbAddOptionalSearchDesc(LSHandle* lshandle, LSMessage *message, void
     json_object *root = NULL, *label = NULL, *response = NULL;
     std::string errMsg;
     std::string xmlUrl;
-    char* uriScheme;
+    char* uriScheme = NULL;
 
     payload = LSMessageGetPayload (message);
     if (!payload) {
@@ -2540,6 +2540,7 @@ done:
        json_object_put (root);
 
    json_object_put (response);
+   g_free(uriScheme);
 
    return true;
 }
