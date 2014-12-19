@@ -17,7 +17,7 @@
 // LICENSE@@@
 
 #include <glib.h>
-#include <cjson/json.h>
+#include <json.h>
 #include <string.h>
 #include <iostream>
 #include <sstream>

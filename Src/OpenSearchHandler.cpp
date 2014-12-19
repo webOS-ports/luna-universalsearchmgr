@@ -23,7 +23,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <lunaservice.h>
-#include <cjson/json.h>
+#include <json.h>
 #include <libxml/xmlreader.h>
 #include <unistd.h>
 #include "OpenSearchHandler.h"

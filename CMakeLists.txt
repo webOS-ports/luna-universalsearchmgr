@@ -42,10 +42,10 @@ webos_add_compiler_flags(ALL ${GXML2_CFLAGS})
 pkg_check_modules(SQLITE3 REQUIRED sqlite3)
 webos_add_compiler_flags(ALL ${SQLITE3_CFLAGS})
 
-# -- check for cjson
-pkg_check_modules(CJSON REQUIRED cjson)
-include_directories(CJSON_INCLUDE_DIRS)
-webos_add_compiler_flags(ALL ${CJSON_CFLAGS})
+# -- check for json-c
+pkg_check_modules(JSON REQUIRED json-c)
+include_directories(JSON_INCLUDE_DIRS)
+webos_add_compiler_flags(ALL ${JSON_CFLAGS})
 
 # -- check for LS2 (internally depends on pmloglib)
 pkg_check_modules(LS2 REQUIRED luna-service2)
@@ -68,7 +68,7 @@ target_link_libraries(LunaUniversalSearchMgr
                       ${GTHREAD2_LDFLAGS}
                       ${GXML2_LDFLAGS}
                       ${SQLITE3_LDFLAGS}
-                      ${CJSON_LDFLAGS}
+                      ${JSON_LDFLAGS}
                       ${LS2_LDFLAGS}
                       )
 

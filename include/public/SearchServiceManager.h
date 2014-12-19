@@ -20,7 +20,7 @@
 #define SEARCHSERVICEMANAGER_H_
 
 #include <string>
-#include <cjson/json.h>
+#include <json.h>
 #include <glib.h>
 #include <list>
 

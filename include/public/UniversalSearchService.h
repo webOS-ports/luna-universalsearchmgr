@@ -26,7 +26,7 @@
 #include <glib.h>
 #include <sqlite3.h>
 #include <lunaservice.h>
-#include <cjson/json.h>
+#include <json.h>
 
 #include "SearchItemsManager.h"
 #include "SearchServiceManager.h"

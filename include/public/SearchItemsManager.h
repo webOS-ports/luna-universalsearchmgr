@@ -22,7 +22,7 @@
 #include <string>
 #include <glib.h>
 #include <iostream>
-#include <cjson/json.h>
+#include <json.h>
 #include <list>
 
 #include "UniversalSearchPrefsDb.h"

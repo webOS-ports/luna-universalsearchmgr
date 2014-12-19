@@ -107,7 +107,7 @@ Below are the tools and libraries (and their minimum versions) required to build
 * gthread-2.0
 * libxml-2.0
 * sqlite3
-* openwebos/cjson
+* json-c 0.11
 * openwebos/luna-service2
 
 ### Building Standalone
