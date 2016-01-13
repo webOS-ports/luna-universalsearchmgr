@@ -62,6 +62,7 @@ void UniversalSearchPrefsDb::openUniversalSearchPrefsDb()
 
 	gchar* prefDbDirPath = g_path_get_dirname(usp_dbFile);
 	g_mkdir_with_parents(prefDbDirPath, 0755);
+	g_free(prefDbDirPath);
 	
 	int ret = sqlite3_open(usp_dbFile, &m_uspDb);
 	if (ret) {
