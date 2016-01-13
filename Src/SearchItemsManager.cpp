@@ -387,7 +387,7 @@ bool SearchItemsManager::addSearchItem(const char* jsonStr, bool dbSync, bool ov
 		version = json_object_get_int(label);
 	}
 	
-	if(id.find("com.palm.app",0) != std::string::npos) {
+	if((id.find("com.palm.app",0) != std::string::npos)||(id.find("org.webosports.app",0) != std::string::npos)) {
 		enabled = true; //Privileged App. Enabled by default.
 	}
 	
@@ -891,7 +891,7 @@ bool SearchItemsManager::addActionProvider(const char* jsonStr, bool dbSync, boo
 		version = json_object_get_int(label);
 	}
 
-	if(id.find("com.palm.app",0) != std::string::npos) {
+	if((id.find("com.palm.app",0) != std::string::npos)||(id.find("org.webosports.app",0) != std::string::npos)) {
 		enabled = true; //Privileged App. Enabled by default.
 	}
 	
@@ -1295,7 +1295,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 		version = json_object_get_int(label);
 	}
 	
-	if(id.find("com.palm.app",0) != std::string::npos) {
+	if((id.find("com.palm.app",0) != std::string::npos)||(id.find("org.webosports.app",0) != std::string::npos)) {
 		enabled = true; //Privileged App. Enabled by default.
 	}
 	
@@ -1692,7 +1692,7 @@ bool SearchItemsManager::validateDbSearchItem(std::string appId, const char* dbQ
 	std::string dbKind;
 	
 	//No restriction for Palm Apps.
-	if(appId.find("com.palm.",0) != std::string::npos) {
+	if((appId.find("com.palm.",0) != std::string::npos)||(appId.find("org.webosports.",0) != std::string::npos)) {
 		return true;
 	}
 	
@@ -1704,7 +1704,7 @@ bool SearchItemsManager::validateDbSearchItem(std::string appId, const char* dbQ
 	dbKind = json_object_get_string(label);
 	
 	//Db Query should not contain com.palm in the db kind.
-	if(dbKind.find("com.palm.",0) == std::string::npos)
+	if((dbKind.find("com.palm.",0) == std::string::npos)||(dbKind.find("org.webosports.",0) == std::string::npos))
 		return true;
 	
 	return false;
