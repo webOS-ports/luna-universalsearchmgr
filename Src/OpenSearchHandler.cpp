@@ -222,13 +222,13 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
 			if (name && value) {
 			    xmlChar* buf = new xmlChar [1024];
 			    if (firstParamAdded) {
-				xmlStrPrintf (buf, 1024, (const xmlChar*) "&%s=%s", name, value);
+				xmlStrPrintf (buf, 1024, (const char*) "&%s=%s", name, value);
 			    }
 			    else {
 				if (templateUrl[xmlStrlen (templateUrl)-1] != '?')
-				    xmlStrPrintf (buf, 1024, (const xmlChar*) "?%s=%s", name, value);
+				    xmlStrPrintf (buf, 1024, (const char*) "?%s=%s", name, value);
 				else
-				    xmlStrPrintf (buf, 1024, (const xmlChar*) "%s=%s", name, value);
+				    xmlStrPrintf (buf, 1024, (const char*) "%s=%s", name, value);
 				firstParamAdded = true;
 			    }
 			    xmlFree (name);
