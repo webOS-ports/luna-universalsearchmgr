@@ -1,0 +1,12 @@
+[Unit]
+Description=Luna Universal Search Manager
+After=filecache.service
+Requires=filecache.service
+
+[Service]
+Type=simple
+Restart=on-failure
+ExecStart=/usr/sbin/LunaUniversalSearchMgr
+
+[Install]
+WantedBy=multi-user.target
