@@ -530,13 +530,13 @@ bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *m
     g_debug ("Download update %s", payload);
 
     root = json_tokener_parse (payload);
-    if (!root || is_error (root)) {
+    if (!root) {
 	g_warning ("Unable to parse payload, ignoring call");
 	goto done;
     }
 
     label = json_object_object_get (root, "completed");
-    if (!label || is_error (label)) {
+    if (!label) {
 	g_debug ("No completed param, download not complete, ignoring");
 	goto done;
     }
@@ -548,7 +548,7 @@ bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *m
     }
 
     label = json_object_object_get (root, "target");
-    if (!label || is_error (label)) {
+    if (!label) {
 	g_warning ("No target param, invalid response");
 	goto done;
     }
@@ -649,13 +649,13 @@ bool OpenSearchHandler::cbDownloadManagerIconUpdate(LSHandle* lshandle, LSMessag
     g_debug ("Download update %s", payload);
 
     root = json_tokener_parse (payload);
-    if (!root || is_error (root)) {
+    if (!root) {
 	g_warning ("Unable to parse payload, ignoring call");
 	goto done;
     }
 
     label = json_object_object_get (root, "completed");
-    if (!label || is_error (label)) {
+    if (!label) {
 	g_debug ("No completed param, download not complete, ignoring");
 	goto done;
     }
@@ -667,7 +667,7 @@ bool OpenSearchHandler::cbDownloadManagerIconUpdate(LSHandle* lshandle, LSMessag
     }
 
     label = json_object_object_get (root, "target");
-    if (!label || is_error (label)) {
+    if (!label) {
 	g_warning ("No target param, invalid response");
 	goto done;
     }

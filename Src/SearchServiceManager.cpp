@@ -53,14 +53,14 @@ bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr)
 	unsigned long timeout = 0L;
 	SearchServiceInfo* serviceInfoObj = new SearchServiceInfo();
 			
-	if(!root || is_error(root)) {
+	if(!root || !root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 		
 	label = json_object_object_get(root, "title");
-	if (!label || is_error(label)) {
+	if (!label || !label) {
 		luna_critical(s_logChannel, "Title is missing");
 		success = false;
 		goto Done;
@@ -68,7 +68,7 @@ bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr)
 	serviceInfoObj->m_title = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "serviceURL"); //Format com.XXX.XXX/<category>.../<method>
-	if (!label || is_error(label)) {
+	if (!label || !label) {
 		luna_critical(s_logChannel, "Service URL is missing");
 		success = false;
 		goto Done;
@@ -85,7 +85,7 @@ bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr)
 	}
 	
 	label = json_object_object_get(root, "action");
-	if (!label || is_error(label)) {
+	if (!label || !label) {
 		luna_critical(s_logChannel, "Action is missing");
 		success = false;
 		goto Done;
@@ -93,7 +93,7 @@ bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr)
 	serviceInfoObj->m_action = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "timeout");
-	if (!label || is_error(label)) {
+	if (!label || !label) {
 		//Default timeout - 5 seconds
 		serviceInfoObj->m_timeout = 5000;
 	}
@@ -134,14 +134,14 @@ bool SearchServiceManager::removeSearchServiceInfo(const char* jsonStr)
 	std::string domainName = "";
 	std::string serviceURL;
 				
-	if(!root || is_error(root)) {
+	if(!root || !root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 			
 	label = json_object_object_get(root, "serviceURL");
-	if (!label || is_error(label)) {
+	if (!label || !label) {
 		luna_critical(s_logChannel, "Title is missing");
 		success = false;
 		goto Done;
@@ -182,14 +182,14 @@ bool SearchServiceManager::modifySearchServiceInfo(const char* jsonStr)
 	std::string serviceURL;
 	std::string domainName = "";
 						
-	if(!root || is_error(root)) {
+	if(!root || !root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 				
 	label = json_object_object_get(root, "serviceURL");
-	if (!label || is_error(label)) {
+	if (!label || !label) {
 		luna_critical(s_logChannel, "serviceURL is missing");
 		success = false;
 		goto Done;
@@ -199,7 +199,7 @@ bool SearchServiceManager::modifySearchServiceInfo(const char* jsonStr)
 	USUtils::getServiceDomainPart(serviceURL, domainName);
 	
 	label = json_object_object_get(root, "enabled");
-	if (!label || is_error(label)) {
+	if (!label || !label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;

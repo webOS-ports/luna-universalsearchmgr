@@ -575,7 +575,7 @@ Done:
 	if (statement)
 		sqlite3_finalize(statement);
 	
-	if(root && !is_error(root))
+	if(root && root)
 		json_object_put(root);
 	
 	return result;    
@@ -602,7 +602,7 @@ bool UniversalSearchPrefsDb::syncSearchPreferenceDb(const char* jsonStr)
 	
 	//Get the version from object if exist
 	label = json_object_object_get(root, "version");
-	if(!label || is_error(label)) {
+	if(!label || !label) {
 		fileVersion = 0;
 	}
 	else 
