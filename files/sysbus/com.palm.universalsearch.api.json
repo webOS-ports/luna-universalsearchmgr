@@ -1,0 +1,32 @@
+{
+    "public": [
+        "com.palm.universalsearch/addOptionalSearchDesc",
+        "com.palm.universalsearch/addSearchItem",
+        "com.palm.universalsearch/clearOptionalSearchList",
+        "com.palm.universalsearch/getAllSearchPreference",
+        "com.palm.universalsearch/getOptionalSearchList",
+        "com.palm.universalsearch/getSearchPreference",
+        "com.palm.universalsearch/getVersion",
+        "com.palm.universalsearch/removeOptionalSearchItem",
+        "com.palm.universalsearch/removeSearchItem",
+        "com.palm.universalsearch/reorderSearchItem",
+        "com.palm.universalsearch/setSearchPreference",
+        "com.palm.universalsearch/updateAllSearchItems",
+        "com.palm.universalsearch/updateSearchItem"
+    ],
+    "private": [
+        "com.palm.universalsearch/addOptionalSearchDesc",
+        "com.palm.universalsearch/addSearchItem",
+        "com.palm.universalsearch/clearOptionalSearchList",
+        "com.palm.universalsearch/getAllSearchPreference",
+        "com.palm.universalsearch/getOptionalSearchList",
+        "com.palm.universalsearch/getSearchPreference",
+        "com.palm.universalsearch/getVersion",
+        "com.palm.universalsearch/removeOptionalSearchItem",
+        "com.palm.universalsearch/removeSearchItem",
+        "com.palm.universalsearch/reorderSearchItem",
+        "com.palm.universalsearch/setSearchPreference",
+        "com.palm.universalsearch/updateAllSearchItems",
+        "com.palm.universalsearch/updateSearchItem"
+    ]
+}
