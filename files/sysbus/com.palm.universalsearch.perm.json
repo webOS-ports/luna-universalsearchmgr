@@ -1,6 +1,11 @@
 {
     "com.palm.universalsearch": [
         "services",
-        "applications"
+        "applications",
+        "signals.all",
+        "settings",
+        "applications.internal",
+        "system",
+        "networking.internal"
     ]
 }
