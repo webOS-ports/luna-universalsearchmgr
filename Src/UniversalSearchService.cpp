@@ -2027,7 +2027,7 @@ bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle* lshandle, L
 		if (json_object_get_boolean(label) == true) 
 		{
 			//the application manager is on the bus...make a call to receive list of installed apps.
-			 if (LSCall(UniversalSearchService::instance()->m_serviceHandlePrivate,"palm://com.palm.applicationManager/listApps",
+			 if (LSCall(UniversalSearchService::instance()->m_serviceHandlePrivate,"luna://com.webos.service.applicationManager/listApps",
 			    		"{}",
 			    		UniversalSearchService::cbAppMgrAppList,NULL,NULL, &lsError) == false) {
 				luna_critical(s_logChannel, "call to applicationmanager/listApps failed");
