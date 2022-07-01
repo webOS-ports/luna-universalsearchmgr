@@ -118,7 +118,7 @@ void UniversalSearchService::postInit() {
 	LSError lsError;
 	LSErrorInit(&lsError);
 
-	result = LSCall(m_serviceHandlePrivate, "palm://com.palm.bus/signal/registerServerStatus",
+	result = LSCall(m_service, "palm://com.palm.bus/signal/registerServerStatus",
 			    "{\"serviceName\":\"com.palm.applicationManager\", \"subscribe\":true}",
 			    UniversalSearchService::cbAppMgrBusStatusNotification, this, NULL, &lsError);
 
@@ -129,7 +129,7 @@ void UniversalSearchService::postInit() {
 	}
 
 	//Subscribe for luna bus registration notification for com.palm.appinstaller
-	result = LSCall(m_serviceHandlePrivate, "palm://com.palm.bus/signal/registerServerStatus",
+	result = LSCall(m_service, "palm://com.palm.bus/signal/registerServerStatus",
 		    "{\"serviceName\":\"com.palm.appinstaller\", \"subscribe\":true}",
 		    UniversalSearchService::cbAppInstallerBusStatusNotification, this, NULL, &lsError);
 
@@ -145,21 +145,18 @@ void UniversalSearchService::startService() {
 	LSError lsError;
 	LSErrorInit(&lsError);
 
-	result = LSRegisterPalmService("com.palm.universalsearch", &m_service, &lsError);
+	result = LSRegister("com.palm.universalsearch", &m_service, &lsError);
 	if (!result)
 		goto Done;
 
-	result = LSPalmServiceRegisterCategory(m_service, "/", s_methods,NULL, NULL, NULL, &lsError);
+	result = LSRegisterCategory(m_service, "/", s_methods, NULL, NULL, &lsError);
 	if (!result)
 		goto Done;
 	
-	result = LSGmainAttachPalmService(m_service, m_mainLoop, &lsError);
+	result = LSGmainAttach(m_service, m_mainLoop, &lsError);
 	if (!result)
 		goto Done;
 
-	m_serviceHandlePublic = LSPalmServiceGetPublicConnection(m_service);
-	m_serviceHandlePrivate = LSPalmServiceGetPrivateConnection(m_service);
-	
 	//Instantiate the Preference handler
 	searchItemsMgr = SearchItemsManager::instance();
 
@@ -169,7 +166,7 @@ void UniversalSearchService::startService() {
 	//Instantiate Open Search Handler;
 	openSearchHandler = OpenSearchHandler::instance();
 
-	result = LSCall(m_serviceHandlePrivate, "palm://com.palm.bus/signal/registerServerStatus",
+	result = LSCall(m_service, "palm://com.palm.bus/signal/registerServerStatus",
 			    "{\"serviceName\":\"com.palm.systemservice\", \"subscribe\":true}",
 			    UniversalSearchService::cbSysServiceBusStatusNotification, this, NULL, &lsError);
 
@@ -192,7 +189,7 @@ void UniversalSearchService::stopService() {
 	LSErrorInit(&lsError);
 	bool result;
 
-	result = LSUnregisterPalmService(m_service, &lsError);
+	result = LSUnregister(m_service, &lsError);
 	if (!result)
 		LSErrorFree(&lsError);
 
@@ -201,7 +198,7 @@ void UniversalSearchService::stopService() {
 
 LSHandle* UniversalSearchService::getServiceHandle()
 {
-	return m_serviceHandlePrivate;
+	return m_service;
 }
 
 std::string UniversalSearchService::getLocale() 
@@ -1307,9 +1304,9 @@ void UniversalSearchService::postSearchListChange(const char* eventName)
 	json_object_object_add (response, "event", json_object_new_string (eventName));
 
 	// Find out which handle this subscription needs to go to
-	bool retVal = LSSubscriptionAcquire(m_serviceHandlePrivate, "getUniversalSearchList", &iter, &lserror);
+	bool retVal = LSSubscriptionAcquire(m_service, "getUniversalSearchList", &iter, &lserror);
 	if (retVal) {
-		lsHandle = m_serviceHandlePrivate;
+		lsHandle = m_service;
 		while (LSSubscriptionHasNext(iter)) {
 			LSMessage *message = LSSubscriptionNext(iter);
 			if (!LSMessageReply(lsHandle,message,json_object_to_json_string (response),&lserror)) {
@@ -1670,9 +1667,9 @@ void UniversalSearchService::postSearchPreferenceChange()
 	UniversalSearchPrefsDb::instance()->getAllSearchPreference(response);
 	
 	// Find out which handle this subscription needs to go to
-	bool retVal = LSSubscriptionAcquire(m_serviceHandlePrivate, "getAllSearchPreference", &iter, &lserror);
+	bool retVal = LSSubscriptionAcquire(m_service, "getAllSearchPreference", &iter, &lserror);
 	if (retVal) {
-		lsHandle = m_serviceHandlePrivate;
+		lsHandle = m_service;
 		while (LSSubscriptionHasNext(iter)) {
 			LSMessage *message = LSSubscriptionNext(iter);
 			if (!LSMessageReply(lsHandle,message,json_object_to_json_string (response),&lserror)) {
@@ -1899,7 +1896,7 @@ bool UniversalSearchService::cbSysServiceBusStatusNotification(LSHandle* lshandl
 		if (json_object_get_boolean(label) == true) 
 		{
 			//the application manager is on the bus...make a call to receive list of installed apps.
-			 if (LSCall(UniversalSearchService::instance()->m_serviceHandlePrivate,"palm://com.palm.systemservice/getPreferences",
+			 if (LSCall(UniversalSearchService::instance()->m_service,"palm://com.palm.systemservice/getPreferences",
 			    		"{\"subscribe\":true, \"keys\": [ \"locale\"]}",
 			    		UniversalSearchService::cbGetLocalePref,NULL,NULL, &lsError) == false) {
 				luna_critical(s_logChannel, "call to systemservice/getPreferences(locale) failed");
@@ -2027,7 +2024,7 @@ bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle* lshandle, L
 		if (json_object_get_boolean(label) == true) 
 		{
 			//the application manager is on the bus...make a call to receive list of installed apps.
-			 if (LSCall(UniversalSearchService::instance()->m_serviceHandlePrivate,"luna://com.webos.service.applicationManager/listApps",
+			 if (LSCall(UniversalSearchService::instance()->m_service,"luna://com.webos.service.applicationManager/listApps",
 			    		"{}",
 			    		UniversalSearchService::cbAppMgrAppList,NULL,NULL, &lsError) == false) {
 				luna_critical(s_logChannel, "call to applicationmanager/listApps failed");
@@ -2189,7 +2186,7 @@ bool UniversalSearchService::cbAppInstallerBusStatusNotification(LSHandle* lshan
 		if (json_object_get_boolean(label) == true) 
 		{
 			//the application installer is on the bus...make a call to receive list of installed apps.
-			 if (LSCall(UniversalSearchService::instance()->m_serviceHandlePrivate,"palm://com.palm.appinstaller/notifyOnChange",
+			 if (LSCall(UniversalSearchService::instance()->m_service,"palm://com.palm.appinstaller/notifyOnChange",
 			    		"{\"subscribe\":true}",
 			    		UniversalSearchService::cbAppInstallerNotifyOnChange,NULL,NULL, &lsError) == false) {
 				luna_critical(s_logChannel, "call to applicationmanager/listApps failed");
@@ -2253,7 +2250,7 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle* lshandle, LS
 	if(status == "INSTALLED") {
 		//get the appInfo.
 		json_object_object_add(params, "appId", json_object_new_string(appId.c_str()));
-		 if (LSCall(UniversalSearchService::instance()->m_serviceHandlePrivate,"palm://com.palm.applicationManager/getAppInfo",
+		 if (LSCall(UniversalSearchService::instance()->m_service,"palm://com.palm.applicationManager/getAppInfo",
 				 json_object_to_json_string (params),
 		    		UniversalSearchService::cbAppMgrGetAppInfo,NULL,NULL, &lserror) == false) {
 			luna_critical(s_logChannel, "call to applicationmanager/getAppInfo failed");
@@ -2701,9 +2698,9 @@ void UniversalSearchService::postOptionalSearchListChange()
 	json_object_object_add (response, "returnValue", json_object_new_boolean (true));
 	
 	// Find out which handle this subscription needs to go to
-	bool retVal = LSSubscriptionAcquire(m_serviceHandlePrivate, "getOptionalSearchList", &iter, &lserror);
+	bool retVal = LSSubscriptionAcquire(m_service, "getOptionalSearchList", &iter, &lserror);
 	if (retVal) {
-		lsHandle = m_serviceHandlePrivate;
+		lsHandle = m_service;
 		while (LSSubscriptionHasNext(iter)) {
 			LSMessage *message = LSSubscriptionNext(iter);
 			if (!LSMessageReply(lsHandle,message,json_object_to_json_string (response),&lserror)) {
