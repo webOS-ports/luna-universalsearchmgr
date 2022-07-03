@@ -67,7 +67,7 @@ public:
 	void setLocale(const std::string& locale);
 	
 	LSHandle* getServiceHandle();
-	
+	   
 	UniversalSearchService();
 	~UniversalSearchService();
 	
@@ -79,9 +79,7 @@ private:
 	std::string m_version;
 	std::string m_locale;
 	
-	LSPalmService * m_service;
-	LSHandle * m_serviceHandlePublic;
-	LSHandle * m_serviceHandlePrivate;
+	LSHandle * m_service;
 	GMainLoop* m_mainLoop;
 };
 
