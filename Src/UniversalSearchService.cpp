@@ -2250,7 +2250,7 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle* lshandle, LS
 	if(status == "INSTALLED") {
 		//get the appInfo.
 		json_object_object_add(params, "appId", json_object_new_string(appId.c_str()));
-		 if (LSCall(UniversalSearchService::instance()->m_service,"palm://com.palm.applicationManager/getAppInfo",
+		 if (LSCall(UniversalSearchService::instance()->m_service,"luna://com.webos.service.applicationManager/getAppInfo",
 				 json_object_to_json_string (params),
 		    		UniversalSearchService::cbAppMgrGetAppInfo,NULL,NULL, &lserror) == false) {
 			luna_critical(s_logChannel, "call to applicationmanager/getAppInfo failed");

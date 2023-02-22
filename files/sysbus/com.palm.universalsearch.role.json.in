@@ -1,5 +1,6 @@
 {
     "exeName":"@WEBOS_INSTALL_SBINDIR@/LunaUniversalSearchMgr",
+    "trustLevel" : "oem",
     "type": "regular",
     "allowedNames": ["com.palm.universalsearch"],
     "permissions": [

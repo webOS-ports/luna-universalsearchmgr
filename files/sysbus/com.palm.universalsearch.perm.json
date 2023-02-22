@@ -1,11 +1,14 @@
 {
     "com.palm.universalsearch": [
-        "services",
-        "applications",
+        "application.operation",
+        "appmanager.management",
+        "networkconnection.management",
+        "networkconnection.query",
+        "settings.query",
         "signals.all",
-        "settings",
-        "applications.internal",
-        "system",
-        "networking.internal"
+        "systemconfig.query",
+        "systemsettings.query",
+        "wifi.query",
+        "wifi.management"
     ]
 }
