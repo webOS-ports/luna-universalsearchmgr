@@ -5,7 +5,7 @@
         "networkconnection.management",
         "networkconnection.query",
         "settings.query",
-        "signals.all",
+        "servicebus.signal",
         "systemconfig.query",
         "systemsettings.query",
         "wifi.query",
