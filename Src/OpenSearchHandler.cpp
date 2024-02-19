@@ -22,7 +22,7 @@
 #include <glib.h>
 #include <dirent.h>
 #include <sys/types.h>
-#include <lunaservice.h>
+#include <luna-service2/lunaservice.h>
 #include <json.h>
 #include <libxml/xmlreader.h>
 #include <unistd.h>
