@@ -16,6 +16,9 @@
 //
 // LICENSE@@@
 
+#include <climits>
+#include <cstdio>
+
 #include "SearchItemsManager.h"
 #include "UniversalSearchPrefsDb.h"
 #include "UniversalSearchService.h"
@@ -66,39 +69,36 @@ void SearchItemsManager::readFromDatabase() {
 	json_object* searchListObj = json_object_new_array();
 	
 	prefsInDb = dbHandler->readPrefDb(searchListObj);
-	
+
 	if(prefsInDb > 0) {
-		for (int i = 0; i < json_object_array_length(searchListObj); i++) {
-			json_object* obj = (json_object*) json_object_array_get_idx(searchListObj, i);
+		for (size_t i = 0; i < (size_t) json_object_array_length(searchListObj); i++) {
+			json_object* obj = json_object_array_get_idx(searchListObj, i);
 			std::string category;
-				
+
 			label = json_object_object_get(obj, "category");
-			if (!label || !label)
+			if (!label)
 				continue;
-			
-				category = json_object_get_string(label);
-				
-				if(category.compare("search") == 0)
-					addSearchItem(json_object_get_string(obj), false, false,false);
-				else if(category.compare("action") == 0)
-					addActionProvider(json_object_get_string(obj), false, false, false);
-				else if(category.compare("dbsearch") == 0)
-					addDBSearchItem(json_object_get_string(obj), false, false,false);
-				else
-					continue;
-			}
+
+			category = json_object_get_string(label);
+
+			if(category.compare("search") == 0)
+				addSearchItem(json_object_get_string(obj), false, false,false);
+			else if(category.compare("action") == 0)
+				addActionProvider(json_object_get_string(obj), false, false, false);
+			else if(category.compare("dbsearch") == 0)
+				addDBSearchItem(json_object_get_string(obj), false, false,false);
+		}
 	}
-	
-	if(searchListObj && searchListObj)
-		json_object_put(searchListObj);
+
+	json_object_put(searchListObj);
 }
 
 void SearchItemsManager::readFromDefaultFile() 
 {
 	// Read the locale file
-	char localizedPrefFileName[100];
-	
-	sprintf(localizedPrefFileName, "/usr/palm/universalsearchmgr/resources/%s/UniversalSearchList.json", UniversalSearchService::instance()->getLocale().c_str());
+	char localizedPrefFileName[PATH_MAX];
+
+	snprintf(localizedPrefFileName, sizeof(localizedPrefFileName), "/usr/palm/universalsearchmgr/resources/%s/UniversalSearchList.json", UniversalSearchService::instance()->getLocale().c_str());
 	luna_critical(s_logChannel, "Reading from file :: %s", localizedPrefFileName);
 	char* jsonStr = USUtils::readFile(localizedPrefFileName);
 	
@@ -118,13 +118,13 @@ void SearchItemsManager::readFromDefaultFile()
 	array_list* searchArray = 0;
 
 	root = json_tokener_parse(jsonStr);
-	if (!root || !root) {
+	if (!root) {
 		luna_critical(s_logChannel, "Failed to parse preference file contents into json");
 		goto Done;
 	}
 
 	label = json_object_object_get(root, "UniversalSearchList");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Failed to get UniversalSearchList entry from preference file");
 		goto Done;
 	}
@@ -135,30 +135,27 @@ void SearchItemsManager::readFromDefaultFile()
 		goto Done;
 	}
 
-	for (int i = 0; i < array_list_length(searchArray); i++) {
+	for (size_t i = 0; i < (size_t) array_list_length(searchArray); i++) {
 		json_object* obj = (json_object*) array_list_get_idx(searchArray, i);
 		std::string category;
-		
+
 		label = json_object_object_get(obj, "category");
-		if (!label || !label)
+		if (!label)
 			continue;
-		
+
 		category = json_object_get_string(label);
-		
+
 		if(category == "search")
 			addSearchItem(json_object_get_string(obj), false, false, false);
 		else if(category.compare("action") == 0)
 			addActionProvider(json_object_get_string(obj), false, false, false);
 		else if(category.compare("dbsearch") == 0)
 			addDBSearchItem(json_object_get_string(obj), false, false, false);
-		else
-			continue;
-	
 	}
 	
 	//Read search Preference
 	label = json_object_object_get(root, "SearchPreference");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Failed to get SearchPreference entry from preference file");
 		goto Done;
 	}
@@ -167,7 +164,7 @@ void SearchItemsManager::readFromDefaultFile()
 	
 	Done:
 		
-		if(root && root)
+		if(root)
 			json_object_put(root);
 				
 		delete [] jsonStr;
@@ -177,8 +174,8 @@ void SearchItemsManager::readFromDefaultFile()
 void SearchItemsManager::readFromCustFile()
 {
 	// Read from the localized customization file
-	char localizedCustPrefFileName[100];
-	sprintf(localizedCustPrefFileName, "/usr/lib/luna/customization/resources/%s/UniversalSearchList.json", UniversalSearchService::instance()->getLocale().c_str());
+	char localizedCustPrefFileName[PATH_MAX];
+	snprintf(localizedCustPrefFileName, sizeof(localizedCustPrefFileName), "/usr/lib/luna/customization/resources/%s/UniversalSearchList.json", UniversalSearchService::instance()->getLocale().c_str());
 	luna_critical(s_logChannel, "Reading from file :: %s", localizedCustPrefFileName);
 
 	char* jsonStr = USUtils::readFile(localizedCustPrefFileName);
@@ -206,13 +203,13 @@ void SearchItemsManager::readFromCustFile()
 	}
 
 	root = json_tokener_parse(jsonStr);
-	if (!root || !root) {
+	if (!root) {
 		luna_critical(s_logChannel, "Failed to parse preference file contents into json");
 		goto Done;
 	}
 
 	label = json_object_object_get(root, "UniversalSearchList");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Failed to get UniversalSearchList entry from preference file");
 		goto Done;
 	}
@@ -223,11 +220,11 @@ void SearchItemsManager::readFromCustFile()
 		goto Done;
 	}
 
-	for (int i = 0; i < array_list_length(searchArray); i++) {
+	for (size_t i = 0; i < (size_t) array_list_length(searchArray); i++) {
 		json_object* obj = (json_object*) array_list_get_idx(searchArray, i);
-		
+
 		label = json_object_object_get(obj, "id");
-		if(!label || !label) {
+		if(!label) {
 			luna_critical(s_logChannel, "Id is missing in the Cust File");
 			continue;
 		}
@@ -235,19 +232,19 @@ void SearchItemsManager::readFromCustFile()
 		
 		//Check this is to remove the object.
 		label = json_object_object_get(obj, "remove");
-		if(label && label) {
+		if(label) {
 			remove = json_object_get_boolean(label);
 		}
 		else
 			remove = false;
 		
 		label = json_object_object_get(obj, "category");
-		if (label && label)
+		if (label)
 			category = json_object_get_string(label);
 
 		//Check if "enabled" field exist.
 		label = json_object_object_get(obj, "enabled");
-		if (label && label) {
+		if (label) {
 			enabledExist = true;
 		}
 		else
@@ -294,31 +291,37 @@ void SearchItemsManager::readFromCustFile()
 	}
 	
 	SyncSearchPref:
-	
+
 		searchPref = json_tokener_parse(m_searchPrefStr.c_str());
-		if(!searchPref || !searchPref) {
+		if(!searchPref) {
 			luna_critical(s_logChannel, "Failed to parse SearchPreference entry from cust preference file");
 			goto Done;
 		}
-		
-		if(fileExist) {
+
+		if(fileExist && root) {
 			//Read search Preference
 			label = json_object_object_get(root, "SearchPreference");
-			if (label && label) {
+			if (label) {
 				json_object_object_foreach(label, key, val) {
-		
+
 					if(val == NULL)
 						continue;
-					
-					json_object_object_add(searchPref, key, val);
+
+					//take an extra reference: the value stays owned by root as well
+					json_object_object_add(searchPref, key, json_object_get(val));
 				}
 			}
 		}
-	
+
 		dbHandler->syncSearchPreferenceDb(json_object_get_string(searchPref));
-	
+
 	Done:
-				
+
+		if(root)
+			json_object_put(root);
+		if(searchPref)
+			json_object_put(searchPref);
+
 		delete [] jsonStr;
 }
 
@@ -331,7 +334,7 @@ json_object* SearchItemsManager::getSearchList()
 	
 	for(SearchProvidersList::const_iterator it=m_searchProvidersList.begin(); it!=m_searchProvidersList.end(); ++it) {
 		
-		SearchProvider searchProvider =  (*it);
+		const SearchProvider& searchProvider = (*it);
 		
 		json_object* infoObj = json_object_new_object();
 		json_object_object_add(infoObj,(char*) "id",json_object_new_string((char*) searchProvider.id.c_str()));
@@ -358,32 +361,32 @@ bool SearchItemsManager::addSearchItem(const char* jsonStr, bool dbSync, bool ov
 	std::string id;
 	int version = 1;
 	bool enabled = false;
-	char idValue[20];
+	char idValue[32];
 	bool success = true;
-	bool imgFileExist = true;
+	bool imgFileExist = false;
 	SearchProvider searchProvider;
 	SearchProvidersList::iterator it;
 	int itemIndex;
 	bool setDefault = false;
 	bool replaceItem = false;
 	
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		//Get the Unique value
-		sprintf(idValue, "User-%d", USUtils::getUniqueId() );
+		snprintf(idValue, sizeof(idValue), "User-%d", USUtils::getUniqueId() );
 		id = idValue;
 	}
-	else 
+	else
 		id = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "version");
-	if (label && label) {
+	if (label) {
 		version = json_object_get_int(label);
 	}
 	
@@ -392,14 +395,14 @@ bool SearchItemsManager::addSearchItem(const char* jsonStr, bool dbSync, bool ov
 	}
 	
 	label = json_object_object_get(root, "enabled");
-	if (label && label) {
+	if (label) {
 		enabled = json_object_get_int(label);
 	}
 
 	//check for duplication
 	//Iterate the list to find the matching object.
 	for(it=m_searchProvidersList.begin(), itemIndex=0; it!=m_searchProvidersList.end(); ++it,++itemIndex) {
-		SearchProvider searchItem =  (*it);
+		const SearchProvider& searchItem = (*it);
 		if(searchItem.id == id) {
 			//Check the flag overwrite is set to true. If truthy then simply replace the entry. but restore the user preference(enable /disable)
 			if(overwrite) {
@@ -427,7 +430,7 @@ bool SearchItemsManager::addSearchItem(const char* jsonStr, bool dbSync, bool ov
 	searchProvider.appExist = appExist;
 
 	label = json_object_object_get(root, "iconFilePath");
-	if (label && label) {
+	if (label) {
 		imageFilePath = json_object_get_string(label);
 						
 		if(!imageFilePath.empty() && USUtils::doesExistOnFilesystem(imageFilePath.c_str())) {
@@ -437,28 +440,29 @@ bool SearchItemsManager::addSearchItem(const char* jsonStr, bool dbSync, bool ov
 	}
 
 	label = json_object_object_get(root, "displayName");
-	if ((!label || !label) && !imgFileExist) {
+	if (!label && !imgFileExist) {
 		luna_critical(s_logChannel, "Both ImageFile and DisplayName are missing");
 		success = false;
 		goto Done;
 	}
-	searchProvider.displayName = json_object_get_string(label);
-					
+	if (label)
+		searchProvider.displayName = json_object_get_string(label);
+
 	label = json_object_object_get(root, "url");
-	if (!label || !label) {
+	if (!label) {
 		success = false;
 		goto Done;
 	}
 	searchProvider.url = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "launchParam");
-	if (label && label) {
+	if (label) {
 		searchProvider.launchParam = json_object_get_string(label);
 	}
 	
 	
 	label = json_object_object_get(root, "type");
-	if(!label || !label) {
+	if(!label) {
 		searchProvider.type = "web";
 	}
 	else 
@@ -471,13 +475,13 @@ bool SearchItemsManager::addSearchItem(const char* jsonStr, bool dbSync, bool ov
 	}
 	
 	label = json_object_object_get(root, "suggestURL");
-	if(label && label) {
+	if(label) {
 		searchProvider.suggestURL = json_object_get_string(label);
 	}
 	
 	//Do we need to set it as a default?
 	label = json_object_object_get(root, "setDefault");
-	if(label && label) {
+	if(label) {
 		setDefault = json_object_get_boolean(label);
 	}
 			
@@ -502,7 +506,7 @@ bool SearchItemsManager::addSearchItem(const char* jsonStr, bool dbSync, bool ov
 	
 	Done:
 	
-		if (root && root)
+		if (root)
 			json_object_put(root);
 	
 		if(!success)
@@ -521,14 +525,14 @@ bool SearchItemsManager::modifySearchItem(const char* jsonStr)
 	int index = 0;
 	bool setDefault = false;
 							
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 				
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "id is missing");
 		success = false;
 		goto Done;
@@ -536,7 +540,7 @@ bool SearchItemsManager::modifySearchItem(const char* jsonStr)
 	Id = json_object_get_string(label);
 			
 	label = json_object_object_get(root, "enabled");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;
@@ -545,7 +549,7 @@ bool SearchItemsManager::modifySearchItem(const char* jsonStr)
 	
 	//Do we need to set it as a default?
 	label = json_object_object_get(root, "setDefault");
-	if(label && label) {
+	if(label) {
 		setDefault = json_object_get_boolean(label);
 	}
 
@@ -568,7 +572,7 @@ bool SearchItemsManager::modifySearchItem(const char* jsonStr)
 	
 	Done:
 		
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -581,20 +585,20 @@ bool SearchItemsManager::modifyAllSearchItems(const char* jsonStr)
 {
 	json_object* root = json_tokener_parse(jsonStr);
 	json_object* label = NULL;
-	json_object* openSearchList;
-	json_object* openSearchObj = json_object_new_array();
+	json_object* openSearchList = NULL;
+	json_object* openSearchObj = NULL;
 	std::string iconFile;
 	bool success = true;
 	bool enabled;
 
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 
 	label = json_object_object_get(root, "enabled");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;
@@ -614,31 +618,32 @@ bool SearchItemsManager::modifyAllSearchItems(const char* jsonStr)
 
 		openSearchObj = json_object_object_get(openSearchList, "Options");
 
-		if (!openSearchObj || !openSearchObj) {
+		if (!openSearchObj) {
 			luna_critical(s_logChannel, "Options is missing");
 			success = false;
 			goto Done;
 		}
-		luna_critical(s_logChannel, "Options length %d", json_object_array_length(openSearchObj));
-		for (int i = 0; i < json_object_array_length(openSearchObj); i++) {
-			json_object* obj = (json_object*) json_object_array_get_idx(openSearchObj, i);
+		luna_critical(s_logChannel, "Options length %d", (int) json_object_array_length(openSearchObj));
+		for (size_t i = 0; i < (size_t) json_object_array_length(openSearchObj); i++) {
+			json_object* obj = json_object_array_get_idx(openSearchObj, i);
 
 			label = json_object_object_get(obj, "imageData");
-			if (label && label) {
+			if (label) {
 				iconFile = json_object_get_string(label);
 			}
 			else {
 				iconFile = std::string("");
 			}
 
+			//take extra references: the values stay owned by their original keys too
 			label = json_object_object_get(obj, "searchUrl");
-			if (label && label) {
-				json_object_object_add (obj, "url", label);
+			if (label) {
+				json_object_object_add (obj, "url", json_object_get(label));
 			}
 
 			label = json_object_object_get(obj, "suggestionUrl");
-			if (label && label) {
-				json_object_object_add (obj, "suggestURL", label);
+			if (label) {
+				json_object_object_add (obj, "suggestURL", json_object_get(label));
 			}
 
 			json_object_object_add (obj, "category", json_object_new_string ("search"));
@@ -655,17 +660,13 @@ bool SearchItemsManager::modifyAllSearchItems(const char* jsonStr)
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
-		if(openSearchObj && openSearchObj)
-			json_object_put(openSearchObj);
+		if (openSearchList)
+			json_object_put(openSearchList);
 
-
-		if(!success)
-			return false;
-
-	return true;
+	return success;
 }
 
 bool SearchItemsManager::removeSearchItem(const char* jsonStr) 
@@ -673,17 +674,16 @@ bool SearchItemsManager::removeSearchItem(const char* jsonStr)
 	json_object* root = json_tokener_parse(jsonStr);
 	json_object* label = NULL;
 	bool success = true;
-	std::string value;
 	std::string id;
 			
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 		
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "ID is missing");
 		success = false;
 		goto Done;
@@ -702,7 +702,7 @@ bool SearchItemsManager::removeSearchItem(const char* jsonStr)
 				
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -720,14 +720,14 @@ bool SearchItemsManager::reorderSearchItem(const char* jsonStr)
 	std::string id;
 	int fromIndex = 0, toIndex = 0;
 			
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 		
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "ID is missing");
 		success = false;
 		goto Done;
@@ -735,7 +735,7 @@ bool SearchItemsManager::reorderSearchItem(const char* jsonStr)
 	id = json_object_get_string(label);
 	
 	/*label = json_object_object_get(root, "fromIndex");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "From Index is missing");
 		success = false;
 		goto Done;
@@ -757,7 +757,7 @@ bool SearchItemsManager::reorderSearchItem(const char* jsonStr)
 	}
 	
 	label = json_object_object_get(root, "toIndex");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "To Index is missing");
 		success = false;
 		goto Done;
@@ -776,7 +776,7 @@ bool SearchItemsManager::reorderSearchItem(const char* jsonStr)
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -836,7 +836,7 @@ bool SearchItemsManager::replaceSearchItem(const std::string& id, const std::str
 bool SearchItemsManager::isSearchItemExist(const std::string& id)
 {
 	for(SearchProvidersList::iterator it=m_searchProvidersList.begin(); it!=m_searchProvidersList.end(); ++it) {
-		SearchProvider searchItem =  (*it);
+		const SearchProvider& searchItem = (*it);
 		if(searchItem.id == id) {
 			return true;
 		}
@@ -872,14 +872,14 @@ bool SearchItemsManager::addActionProvider(const char* jsonStr, bool dbSync, boo
 	ActionProvider actionProvider;
 	ActionProvidersList::iterator it;
 	
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 	
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "id is missing");
 		success = false;
 		goto Done;
@@ -887,7 +887,7 @@ bool SearchItemsManager::addActionProvider(const char* jsonStr, bool dbSync, boo
 	id = json_object_get_string(label);
 
 	label = json_object_object_get(root, "version");
-	if (label && label) {
+	if (label) {
 		version = json_object_get_int(label);
 	}
 
@@ -896,14 +896,14 @@ bool SearchItemsManager::addActionProvider(const char* jsonStr, bool dbSync, boo
 	}
 	
 	label = json_object_object_get(root, "enabled");
-	if (label && label) {
+	if (label) {
 		enabled = json_object_get_boolean(label);
 	}
 
 	//check for duplication
 	//Iterate the list to find the matching object.
 	for(it=m_actionProvidersList.begin(), itemIndex=0; it!=m_actionProvidersList.end(); ++it, ++itemIndex) {
-		ActionProvider actionInfo =  (*it);
+		const ActionProvider& actionInfo = (*it);
 		if(actionInfo.id == id) {
 			if(overwrite) {
 				enabled = actionInfo.enabled;
@@ -930,7 +930,7 @@ bool SearchItemsManager::addActionProvider(const char* jsonStr, bool dbSync, boo
 	actionProvider.appExist = appExist;
 	
 	label = json_object_object_get(root, "iconFilePath");
-	if (label && label) {
+	if (label) {
 		imageFilePath = json_object_get_string(label);
 						
 		if(!imageFilePath.empty() && USUtils::doesExistOnFilesystem(imageFilePath.c_str())) {
@@ -940,20 +940,21 @@ bool SearchItemsManager::addActionProvider(const char* jsonStr, bool dbSync, boo
 		
 	}
 	label = json_object_object_get(root, "displayName");
-	if ((!label || !label) && !imgFileExist) {
+	if (!label && !imgFileExist) {
 		luna_critical(s_logChannel, "Both ImageFile and DisplayName are missing");
 		success = false;
 		goto Done;
 	}
-	actionProvider.displayName = json_object_get_string(label);			
+	if (label)
+		actionProvider.displayName = json_object_get_string(label);
 	label = json_object_object_get(root, "url");
-	if (!label || !label) {
+	if (!label) {
 		success = false;
 		goto Done;
 	}
 	actionProvider.url = json_object_get_string(label);
 	label = json_object_object_get(root, "launchParam");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "launchParam is missing");
 		success = false;
 		goto Done;
@@ -981,7 +982,7 @@ bool SearchItemsManager::addActionProvider(const char* jsonStr, bool dbSync, boo
 	
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1000,14 +1001,14 @@ bool SearchItemsManager::modifyActionProvider(const char* jsonStr)
 	bool enabled;
 	int index = 0;
 						
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 				
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Id is missing");
 		success = false;
 		goto Done;
@@ -1015,7 +1016,7 @@ bool SearchItemsManager::modifyActionProvider(const char* jsonStr)
 	id = json_object_get_string(label);
 			
 	label = json_object_object_get(root, "enabled");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;
@@ -1037,7 +1038,7 @@ bool SearchItemsManager::modifyActionProvider(const char* jsonStr)
 		
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1053,14 +1054,14 @@ bool SearchItemsManager::modifyAllActionProviders(const char* jsonStr)
 	bool success = true;
 	bool enabled;
 
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 
 	label = json_object_object_get(root, "enabled");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;
@@ -1076,7 +1077,7 @@ bool SearchItemsManager::modifyAllActionProviders(const char* jsonStr)
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1092,14 +1093,14 @@ bool SearchItemsManager::removeActionProvider(const char* jsonStr)
 	std::string id;
 	bool success = true;
 						
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 				
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Id is missing");
 		success = false;
 		goto Done;
@@ -1118,7 +1119,7 @@ bool SearchItemsManager::removeActionProvider(const char* jsonStr)
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1136,14 +1137,14 @@ bool SearchItemsManager::reorderActionProvider(const char* jsonStr)
 	std::string id;
 	int fromIndex, toIndex;
 			
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 		
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "ID is missing");
 		success = false;
 		goto Done;
@@ -1151,7 +1152,7 @@ bool SearchItemsManager::reorderActionProvider(const char* jsonStr)
 	id = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "fromIndex");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "From Index is missing");
 		success = false;
 		goto Done;
@@ -1165,7 +1166,7 @@ bool SearchItemsManager::reorderActionProvider(const char* jsonStr)
 	}
 	
 	label = json_object_object_get(root, "toIndex");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "To Index is missing");
 		success = false;
 		goto Done;
@@ -1181,7 +1182,7 @@ bool SearchItemsManager::reorderActionProvider(const char* jsonStr)
 	
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1224,7 +1225,7 @@ json_object* SearchItemsManager::getActionProvidersList()
 	
 	for(ActionProvidersList::const_iterator it=m_actionProvidersList.begin(); it!=m_actionProvidersList.end(); ++it) {
 		
-		ActionProvider actionProvider =  (*it);
+		const ActionProvider& actionProvider = (*it);
 		
 		json_object* infoObj = json_object_new_object();
 		json_object_object_add(infoObj,(char*) "id",json_object_new_string((char*) actionProvider.id.c_str()));
@@ -1243,19 +1244,19 @@ json_object* SearchItemsManager::getActionProvidersList()
 void SearchItemsManager::syncPrefDb()
 {
 	for(SearchProvidersList::const_iterator it=m_searchProvidersList.begin(); it!=m_searchProvidersList.end(); ++it) {
-			SearchProvider searchProvider =  (*it);
+			const SearchProvider& searchProvider = (*it);
 			dbHandler->addSearchRecord(searchProvider.id.c_str(), "search", searchProvider.displayName.c_str(), searchProvider.iconFilePath.c_str(), searchProvider.url.c_str(), 
 					searchProvider.suggestURL.c_str(), searchProvider.launchParam.c_str(), searchProvider.type.c_str(), searchProvider.enabled?1:0, searchProvider.version);
 	}
 
 	for(ActionProvidersList::const_iterator it=m_actionProvidersList.begin(); it!=m_actionProvidersList.end(); ++it) {
-			ActionProvider actionProvider =  (*it);
+			const ActionProvider& actionProvider = (*it);
 			dbHandler->addSearchRecord(actionProvider.id.c_str(), "action", actionProvider.displayName.c_str(), actionProvider.iconFilePath.c_str(), actionProvider.url.c_str(), 
 					actionProvider.suggestURL.c_str(),actionProvider.launchParam.c_str(), actionProvider.type.c_str(), actionProvider.enabled?1:0, actionProvider.version);
 	}
 
 	for(MojoDBSearchItemList::const_iterator it=m_mojodbSearchItemList.begin(); it!=m_mojodbSearchItemList.end(); ++it) {
-			MojoDBSearchItem dbSearch =  (*it);
+			const MojoDBSearchItem& dbSearch = (*it);
 			dbHandler->addDBSearchRecord(dbSearch.id.c_str(), "dbsearch", dbSearch.displayName.c_str(), dbSearch.iconFilePath.c_str(), dbSearch.url.c_str(), 
 					dbSearch.launchParam.c_str(),dbSearch.launchParamDbField.c_str(), dbSearch.dbQuery.c_str(), dbSearch.displayFields.c_str(), dbSearch.batchQuery?1:0,dbSearch.enabled?1:0, dbSearch.version);
 	}		
@@ -1276,14 +1277,14 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	MojoDBSearchItem dbSearchItem;
 	MojoDBSearchItemList::iterator it;
 	
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Id is missing");
 		success = false;
 		goto Done;
@@ -1291,7 +1292,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	id = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "version");
-	if (label && label) {
+	if (label) {
 		version = json_object_get_int(label);
 	}
 	
@@ -1300,7 +1301,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	}
 	
 	label = json_object_object_get(root, "enabled");
-	if (label && label) {
+	if (label) {
 		enabled = json_object_get_boolean(label);
 	}
 
@@ -1308,7 +1309,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	
 	//Iterate the list to find the matching object.
 	for(it=m_mojodbSearchItemList.begin(), itemIndex=0; it!=m_mojodbSearchItemList.end(); ++it, ++itemIndex) {
-		MojoDBSearchItem dbInfo =  (*it);
+		const MojoDBSearchItem& dbInfo = (*it);
 		if(dbInfo.id == id) {
 			if(overwrite) {
 				enabled = dbInfo.enabled;
@@ -1335,7 +1336,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	dbSearchItem.appExist = appExist;
 
 	label = json_object_object_get(root, "dbQuery");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "DbQuery property is missing");
 		success = false;
 		goto Done;
@@ -1349,7 +1350,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	}
 
 	label = json_object_object_get(root, "displayName");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "DisplayName is missing");
 		success = false;
 		goto Done;
@@ -1357,7 +1358,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	dbSearchItem.displayName = json_object_get_string(label);
 
 	label = json_object_object_get(root, "displayFields");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "displayFields is missing");
 		success = false;
 		goto Done;
@@ -1365,29 +1366,29 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 	dbSearchItem.displayFields = json_object_get_string(label);
 
 	label = json_object_object_get(root, "url");
-	if(label && label) {
+	if(label) {
 		dbSearchItem.url = json_object_get_string(label);
 	}
 
 	label = json_object_object_get(root, "launchParam");
-	if(label && label) {
+	if(label) {
 		dbSearchItem.launchParam = json_object_get_string(label);
 	}
 
 	label = json_object_object_get(root, "launchParamDbField");
-	if(label && label) {
+	if(label) {
 		dbSearchItem.launchParamDbField = json_object_get_string(label);
 	}
 	
 	label = json_object_object_get(root, "batchQuery");
-	if (!label || !label) {
+	if (!label) {
 		dbSearchItem.batchQuery = false;
 	}
 	else 
 		dbSearchItem.batchQuery = json_object_get_boolean(label);
 
 	label = json_object_object_get(root, "iconFilePath");
-	if (label && label) {
+	if (label) {
 		imageFilePath = json_object_get_string(label);
 						
 		if(USUtils::doesExistOnFilesystem(imageFilePath.c_str())) {
@@ -1412,7 +1413,7 @@ bool SearchItemsManager::addDBSearchItem(const char* jsonStr, bool dbSync, bool 
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 		
 		if(!success)
@@ -1432,14 +1433,14 @@ bool SearchItemsManager::modifyDBSearchItem(const char* jsonStr)
 	bool enabled;
 	int index = 0;
 						
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 				
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Id is missing");
 		success = false;
 		goto Done;
@@ -1447,7 +1448,7 @@ bool SearchItemsManager::modifyDBSearchItem(const char* jsonStr)
 	id = json_object_get_string(label);
 			
 	label = json_object_object_get(root, "enabled");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;
@@ -1469,7 +1470,7 @@ bool SearchItemsManager::modifyDBSearchItem(const char* jsonStr)
 		
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1485,14 +1486,14 @@ bool SearchItemsManager::modifyAllDBSearchItems(const char* jsonStr)
 	bool success = true;
 	bool enabled;
 
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 
 	label = json_object_object_get(root, "enabled");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;
@@ -1508,7 +1509,7 @@ bool SearchItemsManager::modifyAllDBSearchItems(const char* jsonStr)
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1524,14 +1525,14 @@ bool SearchItemsManager::removeDBSearchItem(const char* jsonStr)
 	std::string id;
 	bool success = true;
 						
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 				
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Id is missing");
 		success = false;
 		goto Done;
@@ -1540,7 +1541,7 @@ bool SearchItemsManager::removeDBSearchItem(const char* jsonStr)
 				
 	//Iterate the list to find the matching object.
 	for(MojoDBSearchItemList::iterator it=m_mojodbSearchItemList.begin(); it!=m_mojodbSearchItemList.end(); ++it) {
-		MojoDBSearchItem dbSearchItem =  (*it);
+		const MojoDBSearchItem& dbSearchItem = (*it);
 		if(dbSearchItem.id == id) {
 			m_mojodbSearchItemList.erase(it);
 			dbHandler->removeDBSearchRecord(id.c_str());
@@ -1550,7 +1551,7 @@ bool SearchItemsManager::removeDBSearchItem(const char* jsonStr)
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1568,14 +1569,14 @@ bool SearchItemsManager::reorderDBSearchItem(const char* jsonStr)
 	std::string id;
 	int fromIndex, toIndex;
 	
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 		
 	label = json_object_object_get(root, "id");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "ID is missing");
 		success = false;
 		goto Done;
@@ -1583,7 +1584,7 @@ bool SearchItemsManager::reorderDBSearchItem(const char* jsonStr)
 	id = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "fromIndex");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "From Index is missing");
 		success = false;
 		goto Done;
@@ -1597,7 +1598,7 @@ bool SearchItemsManager::reorderDBSearchItem(const char* jsonStr)
 	}
 	
 	label = json_object_object_get(root, "toIndex");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "To Index is missing");
 		success = false;
 		goto Done;
@@ -1613,7 +1614,7 @@ bool SearchItemsManager::reorderDBSearchItem(const char* jsonStr)
 
 	Done:
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
 		if(!success)
@@ -1659,7 +1660,7 @@ json_object* SearchItemsManager::getDBSearchItemList()
 	
 	for(MojoDBSearchItemList::const_iterator it=m_mojodbSearchItemList.begin(); it!=m_mojodbSearchItemList.end(); ++it) {
 		
-		MojoDBSearchItem dbSearchItem =  (*it);
+		const MojoDBSearchItem& dbSearchItem = (*it);
 		
 		json_object* infoObj = json_object_new_object();
 		
@@ -1685,49 +1686,54 @@ json_object* SearchItemsManager::getDBSearchItemList()
 }
 
 
-bool SearchItemsManager::validateDbSearchItem(std::string appId, const char* dbQuery)
+bool SearchItemsManager::validateDbSearchItem(const std::string& appId, const char* dbQuery)
 {
 	json_object* fromObj = NULL;
 	json_object* label = NULL;
 	std::string dbKind;
-	
+
 	//No restriction for Palm Apps.
 	if((appId.find("com.palm.",0) != std::string::npos)||(appId.find("org.webosports.",0) != std::string::npos)) {
 		return true;
 	}
-	
+
 	fromObj = json_tokener_parse(dbQuery);
-	
-	label = json_object_object_get(fromObj, "from");
-	if(!label || !label)
+	if(!fromObj)
 		return false;
+
+	label = json_object_object_get(fromObj, "from");
+	if(!label) {
+		json_object_put(fromObj);
+		return false;
+	}
 	dbKind = json_object_get_string(label);
-	
-	//Db Query should not contain com.palm in the db kind.
-	if((dbKind.find("com.palm.",0) == std::string::npos)||(dbKind.find("org.webosports.",0) == std::string::npos))
+	json_object_put(fromObj);
+
+	//Db Query should not contain com.palm or org.webosports in the db kind.
+	if((dbKind.find("com.palm.",0) == std::string::npos) && (dbKind.find("org.webosports.",0) == std::string::npos))
 		return true;
-	
+
 	return false;
 }
 
 bool SearchItemsManager::isItemExist(const std::string& id)
 {
 	for(SearchProvidersList::iterator it=m_searchProvidersList.begin(); it!=m_searchProvidersList.end(); ++it) {
-		SearchProvider searchItem =  (*it);
+		const SearchProvider& searchItem = (*it);
 		if(searchItem.id == id) {
 			return true;
 		}
 	}
 	
 	for(ActionProvidersList::iterator it=m_actionProvidersList.begin(); it!=m_actionProvidersList.end(); ++it) {
-		ActionProvider actionProvider =  (*it);
+		const ActionProvider& actionProvider = (*it);
 		if(actionProvider.id == id) {
 			return true;
 		}
 	}
 	
 	for(MojoDBSearchItemList::iterator it=m_mojodbSearchItemList.begin(); it!=m_mojodbSearchItemList.end(); ++it) {
-		MojoDBSearchItem dbSearch =  (*it);
+		const MojoDBSearchItem& dbSearch = (*it);
 		if(dbSearch.id == id) {
 			return true;
 		}
@@ -1738,21 +1744,21 @@ bool SearchItemsManager::isItemExist(const std::string& id)
 void SearchItemsManager::checkIntegrity()
 {
 	for(SearchProvidersList::iterator it=m_searchProvidersList.begin(); it!=m_searchProvidersList.end(); ++it) {
-		SearchProvider searchItem =  (*it);
+		const SearchProvider& searchItem = (*it);
 		if(searchItem.type == "app" && !searchItem.appExist && searchItem.id != "map") {
 			dbHandler->removeSearchRecord(searchItem.id.c_str(), "search");
 		}
 	}
 
 	for(ActionProvidersList::iterator it=m_actionProvidersList.begin(); it!=m_actionProvidersList.end(); ++it) {
-		ActionProvider actionProvider =  (*it);
+		const ActionProvider& actionProvider = (*it);
 			if(!actionProvider.appExist) {
 				dbHandler->removeSearchRecord(actionProvider.id.c_str(), "action");
 			}
 		}
 
 	for(MojoDBSearchItemList::iterator it=m_mojodbSearchItemList.begin(); it!=m_mojodbSearchItemList.end(); ++it) {
-		MojoDBSearchItem dbSearch =  (*it);
+		const MojoDBSearchItem& dbSearch = (*it);
 		if(!dbSearch.appExist) {
 			dbHandler->removeDBSearchRecord(dbSearch.id.c_str());
 		}
@@ -1762,32 +1768,9 @@ void SearchItemsManager::checkIntegrity()
 	m_mojodbSearchItemList.remove_if(PredDbSearch());
 }
 
-void SearchItemsManager::dumpList() 
-{
-	
-	//int len = json_object_array_length(searchListObj);
-	luna_critical(s_logChannel, "List Array length::  %s", json_object_get_string(searchListObj));
-	
-}
-
 void SearchItemsManager::dumpActionList() {
 	for(ActionProvidersList::const_iterator it=m_actionProvidersList.begin(); it!=m_actionProvidersList.end(); ++it) {
-			ActionProvider actionProvider =  (*it);
-			const char* appId = actionProvider.id.c_str();
-			//const char* displayName = actionProvider.displayName.c_str();
-			luna_critical(s_logChannel, "Action Provider :: %s  %d ", appId, actionProvider.appExist);
+			const ActionProvider& actionProvider =  (*it);
+			luna_critical(s_logChannel, "Action Provider :: %s  %d ", actionProvider.id.c_str(), actionProvider.appExist);
 		}
-	/*for(MojoDBSearchItemList::const_iterator it=m_mojodbSearchItemList.begin(); it!=m_mojodbSearchItemList.end(); ++it) {
-		MojoDBSearchItem dbSearch =  (*it);
-		const char* appId = dbSearch.id.c_str();
-		const char* displayName = dbSearch.displayName.c_str();
-		const char* queryStr = dbSearch.dbQuery.c_str();
-		const char* displayFields = dbSearch.displayFields.c_str();
-		luna_critical(s_logChannel, "Action Provider :: %s  %s %s %s", appId, displayName, queryStr, displayFields);
-	}*/
-	/*for(SearchProvidersList::iterator it=m_searchProvidersList.begin(); it!=m_searchProvidersList.end(); ++it) {
-			SearchProvider& searchProvider =  (*it);
-			const char* appId = searchProvider.id.c_str();
-			luna_critical(s_logChannel, "Search Item :: %s  ", appId);
-		}*/
 }

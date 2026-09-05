@@ -74,21 +74,19 @@ public:
 	bool moveDBSearchItem(const std::string& id, int fromIndex, int toIndex);
 	bool modifyAllDBSearchItems(const char* jsonStr);
 	
-	bool validateDbSearchItem(std::string appId, const char* dbQuery);
-	
+	bool validateDbSearchItem(const std::string& appId, const char* dbQuery);
+
 	bool isItemExist(const std::string& id);
-	
+
 	void init();
-	
+
 	void checkIntegrity();
 
-	void dumpList();
 	void dumpActionList();
 
 private:
-	
+
 	UniversalSearchPrefsDb* dbHandler;
-	json_object* searchListObj;
 	std::string m_searchPrefStr;
 	static SearchItemsManager* s_simgr_instance;
 	

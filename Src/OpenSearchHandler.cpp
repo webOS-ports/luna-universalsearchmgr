@@ -33,6 +33,16 @@
 
 #define GENRIC_ICON "/usr/lib/luna/system/luna-applauncher/images/search-icon-generic.png"
 
+static inline const xmlChar* XMLSTR(const char* s)
+{
+    return reinterpret_cast<const xmlChar*>(s);
+}
+
+static inline const char* CSTR(const xmlChar* s)
+{
+    return reinterpret_cast<const char*>(s);
+}
+
 static OpenSearchHandler* s_instance = NULL;
 
 OpenSearchHandler* OpenSearchHandler::instance() {
@@ -42,21 +52,24 @@ OpenSearchHandler* OpenSearchHandler::instance() {
     return s_instance;
 }
 
-OpenSearchHandler::OpenSearchHandler() {
 #if defined (TARGET_DESKTOP)
-	m_searchPluginPath = std::string(getenv("HOME"))+std::string("/downloads/searchplugins");
-#else
-	m_searchPluginPath = std::string("/var/palm/data/universalsearchmgr/searchplugins");
-#endif
-	g_mkdir_with_parents (m_searchPluginPath.c_str(), 0755);
+static std::string homePath()
+{
+	const char* home = getenv("HOME");
+	return home ? home : "";
+}
 
-#if defined (TARGET_DESKTOP)
-	m_searchPluginIconPath = std::string(getenv("HOME"))+std::string("/downloads/assets/");
+OpenSearchHandler::OpenSearchHandler()
+    : m_searchPluginPath(homePath() + "/downloads/searchplugins"),
+      m_searchPluginIconPath(homePath() + "/downloads/assets/")
 #else
-	m_searchPluginIconPath = std::string("/var/palm/data/universalsearchmgr/assets/");
+OpenSearchHandler::OpenSearchHandler()
+    : m_searchPluginPath("/var/palm/data/universalsearchmgr/searchplugins"),
+      m_searchPluginIconPath("/var/palm/data/universalsearchmgr/assets/")
 #endif
+{
+	g_mkdir_with_parents (m_searchPluginPath.c_str(), 0755);
 	g_mkdir_with_parents (m_searchPluginIconPath.c_str(), 0755);
-	
 }
 
 void OpenSearchHandler::scanExistingPlugins()
@@ -141,38 +154,39 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
 	return false;
     }
 
-    if (xmlStrcmp (cur->name, (const xmlChar*) "SearchPlugin")
-	    && xmlStrcmp (cur->name, (const xmlChar*) "OpenSearchDescription")) {
+    if (xmlStrcmp (cur->name, XMLSTR("SearchPlugin"))
+	    && xmlStrcmp (cur->name, XMLSTR("OpenSearchDescription"))) {
 	g_warning ("Document not of type SearchPlugin\n");
 	xmlFreeDoc (doc);
 	return false;
     }
 
     for (cur = cur->xmlChildrenNode; cur != NULL; cur = cur->next) {
-    if(cur->name == NULL)
-    	continue;
-	if (!xmlStrcmp (cur->name, (const xmlChar*) "ShortName")) {
+	if(cur->name == NULL)
+	    continue;
+	if (!xmlStrcmp (cur->name, XMLSTR("ShortName"))) {
 	    xmlChar* value = xmlNodeListGetString (doc, cur->xmlChildrenNode, 1);
-	    g_debug ("ShortName is %s\n", value);
-	    if(value)
-	    	info.displayName = (const char*) value;
+	    if(value) {
+	    	g_debug ("ShortName is %s\n", value);
+	    	info.displayName = CSTR(value);
+	    }
 	    xmlFree (value);
 	}
-	else if (!xmlStrcmp (cur->name, (const xmlChar*) "Image")) {
+	else if (!xmlStrcmp (cur->name, XMLSTR("Image"))) {
 	    xmlChar* value = xmlNodeListGetString (doc, cur->xmlChildrenNode, 1);
 	    if(value)
-	    	info.imageData = (const char*) value;
+	    	info.imageData = CSTR(value);
 	    xmlFree (value);
 	}
-	else if (!xmlStrcmp (cur->name, (const xmlChar*) "Url")) {
+	else if (!xmlStrcmp (cur->name, XMLSTR("Url"))) {
 	    bool isSearchUrl = false;
 	    bool isSuggestionUrl = false;
 
-	    xmlChar* rel = xmlGetProp (cur, (const xmlChar*) "rel");
+	    xmlChar* rel = xmlGetProp (cur, XMLSTR("rel"));
 	    if (rel) {
-		if (xmlStrcmp (rel, (const xmlChar*) "results"))
+		if (!xmlStrcmp (rel, XMLSTR("results")))
 		    isSearchUrl = true;
-		else if (xmlStrcmp (rel, (const xmlChar*) "suggestions"))
+		else if (!xmlStrcmp (rel, XMLSTR("suggestions")))
 		    isSuggestionUrl = true;
 		else {
 		    g_warning ("unsupported rel value, ignoring this url");
@@ -182,21 +196,21 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
 	    }
 	    xmlFree (rel);
 
-	    xmlChar* value = xmlGetProp (cur, (const xmlChar*)"type");
+	    xmlChar* value = xmlGetProp (cur, XMLSTR("type"));
 	    if (value) {
 		g_debug ("Url type = %s", value);
-		    if (!xmlStrcmp (value, (const xmlChar*)"text/html")) {
+		    if (!xmlStrcmp (value, XMLSTR("text/html"))) {
 			isSearchUrl = true;
 		    }
-		    else if (!xmlStrcmp (value, (const xmlChar*)"application/x-suggestions+json")) {
+		    else if (!xmlStrcmp (value, XMLSTR("application/x-suggestions+json"))) {
 			isSuggestionUrl = true;
 		    }
-		    else if (!xmlStrcmp (value, (const xmlChar*)"application/json") && !isSuggestionUrl) {
+		    else if (!xmlStrcmp (value, XMLSTR("application/json")) && !isSuggestionUrl) {
 			// allowing this type if rel is set as long as one of the urls are set
 		    }
 		    else {
 			// not interested in other types of urls
-			g_warning ("unsupported type %s, ignoring this url", (const char*)value);
+			g_warning ("unsupported type %s, ignoring this url", CSTR(value));
 			xmlFree (value);
 			continue;
 		    }
@@ -209,43 +223,40 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
 	    }
 
 
-	    xmlChar* templateUrl = xmlGetProp (cur, (const xmlChar*)"template");
+	    xmlChar* templateUrl = xmlGetProp (cur, XMLSTR("template"));
 	    if (templateUrl) {
-		xmlNodePtr urlChildren = cur->xmlChildrenNode;
 		bool firstParamAdded = false;
-		while (urlChildren) {
-			if(urlChildren->name == NULL)
-				continue;
-		    if (!xmlStrcmp (urlChildren->name, (const xmlChar*)"Param")) {
-			xmlChar* name = xmlGetProp (urlChildren, (const xmlChar*)"name");
-			xmlChar* value = xmlGetProp (urlChildren, (const xmlChar*)"value");
+		for (xmlNodePtr urlChildren = cur->xmlChildrenNode; urlChildren; urlChildren = urlChildren->next) {
+		    if (urlChildren->name == NULL)
+			continue;
+		    if (!xmlStrcmp (urlChildren->name, XMLSTR("Param"))) {
+			xmlChar* name = xmlGetProp (urlChildren, XMLSTR("name"));
+			xmlChar* value = xmlGetProp (urlChildren, XMLSTR("value"));
 			if (name && value) {
-			    xmlChar* buf = new xmlChar [1024];
+			    xmlChar buf[1024];
 			    if (firstParamAdded) {
-				xmlStrPrintf (buf, 1024, (const char*) "&%s=%s", name, value);
+				xmlStrPrintf (buf, sizeof(buf), "&%s=%s", name, value);
 			    }
 			    else {
 				if (templateUrl[xmlStrlen (templateUrl)-1] != '?')
-				    xmlStrPrintf (buf, 1024, (const char*) "?%s=%s", name, value);
+				    xmlStrPrintf (buf, sizeof(buf), "?%s=%s", name, value);
 				else
-				    xmlStrPrintf (buf, 1024, (const char*) "%s=%s", name, value);
+				    xmlStrPrintf (buf, sizeof(buf), "%s=%s", name, value);
 				firstParamAdded = true;
 			    }
-			    xmlFree (name);
-			    xmlFree (value);
 
 			    templateUrl = xmlStrcat (templateUrl, buf);
-			    delete [] buf;
-
 			}
+			xmlFree (name);
+			xmlFree (value);
 		    }
-		    urlChildren = urlChildren->next;
 		}
 		g_debug ("Url template = %s\n", templateUrl);
 		if (isSearchUrl)
-		    info.searchUrl = (const char*) templateUrl;
+		    info.searchUrl = CSTR(templateUrl);
 		else if (isSuggestionUrl)
-		    info.suggestionUrl = (const char*) templateUrl;
+		    info.suggestionUrl = CSTR(templateUrl);
+		xmlFree (templateUrl);
 	    }
 	    else {
 		g_warning ("no template specified, ignoring this url");
@@ -253,6 +264,8 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
 	    }
 	}
     }
+
+    xmlFreeDoc (doc);
    
     g_debug ("search info -\n\tid: %s\n\tdisplayName: %s\n\tsearchUrl: %s\n\tsuggestionUrl: %s\n\timageData: %s\n",
 	    info.id.c_str(), info.displayName.c_str(), info.searchUrl.c_str(), info.suggestionUrl.c_str(), info.imageData.c_str());
@@ -315,13 +328,12 @@ bool OpenSearchHandler::parseXml (const std::string& xmlFile, bool scanningDir)
     return true;
 }
 
-const char* OpenSearchHandler::parseImage(const std::string& id, const std::string& imageData) 
+std::string OpenSearchHandler::parseImage(const std::string& id, const std::string& imageData)
 {
 	std::string imageOnly;
 	std::string imageType;
 	std::size_t found;
 	std::string fileName;
-	std::string Hex;
 	gsize datalength;
 	guchar* imgData;
 	
@@ -330,7 +342,7 @@ const char* OpenSearchHandler::parseImage(const std::string& id, const std::stri
     fileName += ".ico";
 
 	
-	found = imageData.find_first_of(",");
+	found = imageData.find(',');
 	if(found == std::string::npos)
 		return "";
 	
@@ -342,7 +354,7 @@ const char* OpenSearchHandler::parseImage(const std::string& id, const std::stri
 		return GENRIC_ICON;
 	
 	if(strstr(imageType.c_str(), "base64") == NULL) {
-		imgData = (guchar*)unescapeString((gchar*)imageOnly.c_str(), datalength);		
+		imgData = reinterpret_cast<guchar*>(unescapeString(imageOnly.c_str(), datalength));
 	}
 	else {
 		if(strstr(imageType.c_str(), "x-icon") != NULL)
@@ -358,19 +370,18 @@ const char* OpenSearchHandler::parseImage(const std::string& id, const std::stri
 	FILE * ofile = fopen(fileName.c_str(),"wb");
 	if(ofile == NULL) {
 		g_debug("File Open error");
-		imgData = NULL;
+		g_free(imgData);
 		return GENRIC_ICON;
 	}
-	
+
 	fwrite(imgData, 1, datalength, ofile );
-	
+
 	fflush(ofile);
 	fclose(ofile);
 
 	g_free(imgData);
-	imgData = NULL;
 
-	return fileName.c_str();
+	return fileName;
 }
 
 gchar* OpenSearchHandler::unescapeString (const gchar *escaped, gsize& size)
@@ -462,42 +473,9 @@ bool 	OpenSearchHandler::clearOpenSearchList()
 	}
 	
 	return removedSearchItem;
-
-	//delete the icon files in the assets directory
-	/*for (std::map<std::string, OpenSearchInfo>::iterator it = m_osItems.begin(); it != m_osItems.end(); ++it) {
-		unlink(it->second.imageData.c_str());
-	}
-    m_osItems.clear();
-
-    DIR	*dir;
-    struct dirent* pluginFile;
-    if (m_searchPluginPath.empty()) {
-	g_warning ("empty plugin path, ignoring");
-	return;
-    }
-
-    dir = opendir (m_searchPluginPath.c_str());
-    if (!dir) {
-	g_warning ("Unable to open the directory %s", m_searchPluginPath.c_str());
-	return;
-    }
-
-    while ((pluginFile = readdir(dir)) != NULL) {
-	std::string fileName = std::string (pluginFile->d_name);
-
-	if (fileName == "." || fileName == "..")
-	    continue;
-
-	std::string pluginFilePath = m_searchPluginPath + std::string ("/") + fileName;
-
-	g_debug ("Removing file %s", pluginFilePath.c_str());
-	unlink (pluginFilePath.c_str());
-    }
-
-    closedir (dir);*/
 }
 
-bool	OpenSearchHandler::clearOpenSearchItem (const std::string id)
+bool	OpenSearchHandler::clearOpenSearchItem (const std::string& id)
 {
     if (m_osItems.find (id) != m_osItems.end()) {
 	m_osItems.erase (id);
@@ -508,10 +486,8 @@ bool	OpenSearchHandler::clearOpenSearchItem (const std::string id)
     return false;
 }
 
-bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *message, void *user_data) 
+bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle*, LSMessage *message, void *)
 {
-    LSError lserror;
-    LSErrorInit(&lserror);
     bool success = false;
 
     const char* payload = NULL;
@@ -562,7 +538,10 @@ bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *m
     newFilePath = OpenSearchHandler::instance()->m_searchPluginPath;
     newFilePath += '/';
     newFilePath += xmlFile.substr (xmlFile.find_last_of ('/')+1, xmlFile.size() - 1);
-	
+
+    //Only relocate when the download manager delivered the file elsewhere;
+    //copying a file onto itself would truncate it.
+    if (xmlFile != newFilePath) {
 	if(USUtils::fileCopy(xmlFile.c_str(), newFilePath.c_str()) == -1)
 	{
 		g_warning("File Copy error" );
@@ -571,7 +550,8 @@ bool OpenSearchHandler::cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *m
 	 }
 	g_debug ("Removing file %s", xmlFile.c_str());
 	unlink (xmlFile.c_str());
-    xmlFile = newFilePath;
+	xmlFile = newFilePath;
+    }
 #endif
 
     success = OpenSearchHandler::instance()->parseXml (xmlFile, false);
@@ -590,20 +570,20 @@ done:
     return true;
 }
 
-const char* OpenSearchHandler::downloadIcon (const std::string& imageUrl) 
+std::string OpenSearchHandler::downloadIcon (const std::string& imageUrl)
 {
     LSError lserror;
     LSErrorInit(&lserror);
     bool success = false;
-    
+
     std::string iconFileName = encodeUrlToFile(imageUrl);
     std::string fileAndPath = m_searchPluginIconPath + iconFileName;
-    
-    //check if the image has been downloaded already. 
+
+    //check if the image has been downloaded already.
     if(USUtils::doesExistOnFilesystem(fileAndPath.c_str())) {
     	//It exist. skip the download.
     	g_debug ("Icon File exist. adding info to m_osItems");
-    	return fileAndPath.c_str();
+    	return fileAndPath;
     }
     
     json_object*  downloadReq = json_object_new_object();
@@ -623,19 +603,14 @@ const char* OpenSearchHandler::downloadIcon (const std::string& imageUrl)
 	LSErrorFree(&lserror);
 	return GENRIC_ICON;
     }
-    
-    return fileAndPath.c_str();
+
+    return fileAndPath;
 }
 
-bool OpenSearchHandler::cbDownloadManagerIconUpdate(LSHandle* lshandle, LSMessage *message, void *user_data) 
+bool OpenSearchHandler::cbDownloadManagerIconUpdate(LSHandle*, LSMessage *message, void *)
 {
-    LSError lserror;
-    LSErrorInit(&lserror);
-    bool success = false;
-  
     const char* payload = NULL;
     json_object *root = NULL, *label = NULL;
-    std::string errMsg;
     std::string xmlFile;
     std::string newFilePath;
     bool downloadComplete = false;
@@ -677,24 +652,24 @@ bool OpenSearchHandler::cbDownloadManagerIconUpdate(LSHandle* lshandle, LSMessag
 	g_warning ("invalid file");
 	goto done;
     }
-    else
-    	success = true;
-    
+
 #if !defined (TARGET_DESKTOP)
     newFilePath = OpenSearchHandler::instance()->m_searchPluginIconPath;
     newFilePath += xmlFile.substr (xmlFile.find_last_of ('/')+1, xmlFile.size() - 1);
 
+    //Only relocate when the download manager delivered the file elsewhere;
+    //copying a file onto itself would truncate it.
+    if (xmlFile != newFilePath) {
 	if(USUtils::fileCopy(xmlFile.c_str(), newFilePath.c_str()) == -1)
 	{
 		g_warning("File Copy error" );
-		success = false;
 		goto done;
 	 }
 	g_debug ("Removing file %s", xmlFile.c_str());
 	unlink (xmlFile.c_str());
-    xmlFile = newFilePath;
+    }
 #endif
-    
+
 done:
     if (root)
     	json_object_put (root);
@@ -702,7 +677,7 @@ done:
     return true;
 }
 
-bool OpenSearchHandler::notifyOpenSearchItemAvailable(std::string& displayName)
+bool OpenSearchHandler::notifyOpenSearchItemAvailable(const std::string& displayName)
 {
 	LSError lserror;
     LSErrorInit(&lserror);
@@ -729,7 +704,7 @@ bool OpenSearchHandler::notifyOpenSearchItemAvailable(std::string& displayName)
 
 }
 
-bool OpenSearchHandler::checkForDuplication(std::string& xmlFileName)
+bool OpenSearchHandler::checkForDuplication(const std::string& xmlFileName)
 {
 	std::string id = m_searchPluginPath + "/" + encodeUrlToFile(xmlFileName);
 
@@ -757,25 +732,6 @@ std::string OpenSearchHandler::encodeUrlToFile (const std::string& source)
     }
 
     return fileName;
-
-#if 0
-    // XXX: the resulting file name did not work with the xmlReader
-
-    // using uriparser
-    char * buffer = new char[6*(source.length())+1];
-    char * term = uriEscapeA(source.c_str(),buffer,false,false);
-    if (term == NULL)
-	return std::string("");
-
-    // escaping the % characters
-    gchar* escapedBuf = g_strescape (buffer, NULL);
-    std::string r(escapedBuf);
-    g_debug ("%s: Original=%s\n New=%s", __PRETTY_FUNCTION__, source.c_str(), r.c_str());
-    delete [] buffer;
-    g_free (escapedBuf);
-    return r;
-#endif
-
 }
 
 

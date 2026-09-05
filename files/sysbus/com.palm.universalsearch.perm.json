@@ -2,6 +2,7 @@
     "com.palm.universalsearch": [
         "application.operation",
         "appmanager.management",
+        "download.management",
         "networkconnection.management",
         "networkconnection.query",
         "settings.query",

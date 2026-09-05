@@ -60,7 +60,6 @@ public:
 	bool addSearchServiceInfo(const char* jsonStr);
 	bool removeSearchServiceInfo(const char* jsonStr);
 	bool modifySearchServiceInfo(const char* jsonStr);
-	bool isExist(SearchServiceManager* serviceInfo);
 	json_object* getSearchServiceList();
 	
 	

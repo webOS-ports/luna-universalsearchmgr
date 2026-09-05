@@ -33,24 +33,26 @@ char* readFile(const char* filePath)
 	if (!f)
 		return 0;
 
-	fseek(f, 0L, SEEK_END);
+	if (fseek(f, 0L, SEEK_END) != 0) {
+		fclose(f);
+		return 0;
+	}
 	long sz = ftell(f);
-	fseek( f, 0L, SEEK_SET );
-	if (!sz || sz == -1L) {
+	if (sz <= 0 || fseek(f, 0L, SEEK_SET) != 0) {
 		fclose(f);
 		return 0;
 	}
 
 	char* ptr = new char[sz+1];
-	if( !ptr )
-	{
-		fclose(f);
-		return 0;
-	}
 	ptr[sz] = 0;
-	
+
 	size_t res = fread(ptr, sz, 1, f);
 	fclose(f);
+
+	if (res != 1) {
+		delete [] ptr;
+		return 0;
+	}
 
 	return ptr;
 }
@@ -66,7 +68,7 @@ bool doesExistOnFilesystem(const char * pathAndFile) {
 	struct stat buf;
 	if (-1 == ::stat(pathAndFile, &buf ) ) {
 		//Check if it is in 1.5 folder.
-		std::string::size_type pos = fName.find_last_of("/");
+		std::string::size_type pos = fName.find_last_of('/');
 		if(pos != std::string::npos) {
 			newPathAndFile = fName.substr(0, pos) + "/1.5/" + fName.substr(pos);
 			if(-1 != ::stat(newPathAndFile.c_str(), &buf) )
@@ -97,16 +99,16 @@ bool getServiceDomainPart(const std::string& url, std::string& domainPart)
 	std::string::size_type pos = url.find_first_of(':', 0);
 	if(pos != std::string::npos) {
 		//check the 2 chars followed by are "//"
-		if(url[pos+1] == '/' && url[pos+2] == '/')
+		if(pos + 2 < url.size() && url[pos+1] == '/' && url[pos+2] == '/')
 			pos += 3;
 	}
 	else
 		pos = 0;
-	
+
 	//Find the first occurrence of "/"
 	std::string::size_type lastPos = url.find_first_of(delimiter, pos);
 	if(lastPos != std::string::npos) {
-		domainPart = url.substr(pos, lastPos);
+		domainPart = url.substr(pos, lastPos - pos);
 		return true;
 	}
 	
@@ -129,21 +131,22 @@ int fileCopy(const char * srcFileAndPath,const char * dstFileAndPath)
 	}
 	
 	char buffer[2048];
-	while (!feof(infp)) {
-		size_t r = fread(buffer,1,2048,infp);
-		if ((r == 0) && (ferror(infp))) {
+	size_t r;
+	int result = 1;
+	while ((r = fread(buffer, 1, sizeof(buffer), infp)) > 0) {
+		if (fwrite(buffer, 1, r, outfp) < r) {
+			result = -1;
 			break;
 		}
-		size_t w = fwrite(buffer,1,r,outfp);
-		if (w < r) {
-			break;
-		}
+		if (r < sizeof(buffer))
+			break; //short read: EOF (or an error, checked below)
 	}
-	
-	fflush(infp);
+	if (ferror(infp))
+		result = -1;
+
 	fflush(outfp);
 	fclose(infp);
 	fclose(outfp);
-	return 1;
+	return result;
 }
 } // End of namespace USUtils

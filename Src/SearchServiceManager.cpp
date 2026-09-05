@@ -44,7 +44,7 @@ SearchServiceManager::~SearchServiceManager()
 	s_ssmgr_instance = 0;
 }
 
-bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr) 
+bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr)
 {
 	json_object* root = json_tokener_parse(jsonStr);
 	json_object* label;
@@ -52,29 +52,29 @@ bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr)
 	std::string domainName = "";
 	unsigned long timeout = 0L;
 	SearchServiceInfo* serviceInfoObj = new SearchServiceInfo();
-			
-	if(!root || !root) {
+
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
-		
+
 	label = json_object_object_get(root, "title");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Title is missing");
 		success = false;
 		goto Done;
 	}
 	serviceInfoObj->m_title = json_object_get_string(label);
-	
+
 	label = json_object_object_get(root, "serviceURL"); //Format com.XXX.XXX/<category>.../<method>
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Service URL is missing");
 		success = false;
 		goto Done;
 	}
 	serviceInfoObj->m_serviceURL = json_object_get_string(label);
-	
+
 	if(USUtils::getServiceDomainPart(serviceInfoObj->m_serviceURL, domainName)) {
 		serviceInfoObj->m_serviceID = domainName;
 	}
@@ -83,46 +83,40 @@ bool SearchServiceManager::addSearchServiceInfo(const char* jsonStr)
 		success = false;
 		goto Done;
 	}
-	
+
 	label = json_object_object_get(root, "action");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Action is missing");
 		success = false;
 		goto Done;
 	}
 	serviceInfoObj->m_action = json_object_get_string(label);
-	
+
+	//Default timeout is 5 seconds (set by the constructor); accept a sane override.
 	label = json_object_object_get(root, "timeout");
-	if (!label || !label) {
-		//Default timeout - 5 seconds
-		serviceInfoObj->m_timeout = 5000;
+	if (label) {
+		timeout = (unsigned long) json_object_get_int(label);
+		if(timeout > 1000 && timeout < 20000)
+			serviceInfoObj->m_timeout = timeout;
 	}
-	timeout = (unsigned long) json_object_get_int(label);
-	//Check the given timeout value
-	if(timeout > 1000 && timeout < 20000)
-		serviceInfoObj->m_timeout = timeout;
-	else
-		serviceInfoObj->m_timeout = 5000;
-	
+
 	//By default, enabled field is set to false when service is added to the list.
 	serviceInfoObj->m_enabled = false;
-	
+
 	//All service objects are removable by user.
 	serviceInfoObj->m_preventDelete = false;
-	
+
 	//All validation passed. Add it to the list
 	m_serviceInfoList.push_back(serviceInfoObj);
-	
-	//Save it to the Database.
- 	//dbHandler->syncPrefDb(searchListObj);
-			
+
 	Done:
-		serviceInfoObj = NULL;
-		if(success)
+		if(root)
 			json_object_put(root);
-		else
+		if(!success) {
+			delete serviceInfoObj;
 			return false;
-		
+		}
+
 	return true;
 }
 
@@ -134,14 +128,14 @@ bool SearchServiceManager::removeSearchServiceInfo(const char* jsonStr)
 	std::string domainName = "";
 	std::string serviceURL;
 				
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 			
 	label = json_object_object_get(root, "serviceURL");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "Title is missing");
 		success = false;
 		goto Done;
@@ -160,17 +154,11 @@ bool SearchServiceManager::removeSearchServiceInfo(const char* jsonStr)
 		}
 	}
 	
-	//Save it to the Database.
-	// dbHandler->syncPrefDb(searchListObj);
-	
 	Done:
-		if(success)
+		if(root)
 			json_object_put(root);
-		else
-			return false;
-			
-	return true;	
-		
+
+	return success;
 }
 
 bool SearchServiceManager::modifySearchServiceInfo(const char* jsonStr) 
@@ -182,14 +170,14 @@ bool SearchServiceManager::modifySearchServiceInfo(const char* jsonStr)
 	std::string serviceURL;
 	std::string domainName = "";
 						
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Failed to parse content into json");
 		success = false;
 		goto Done;
 	}
 				
 	label = json_object_object_get(root, "serviceURL");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "serviceURL is missing");
 		success = false;
 		goto Done;
@@ -199,7 +187,7 @@ bool SearchServiceManager::modifySearchServiceInfo(const char* jsonStr)
 	USUtils::getServiceDomainPart(serviceURL, domainName);
 	
 	label = json_object_object_get(root, "enabled");
-	if (!label || !label) {
+	if (!label) {
 		luna_critical(s_logChannel, "enabled is missing");
 		success = false;
 		goto Done;
@@ -215,17 +203,11 @@ bool SearchServiceManager::modifySearchServiceInfo(const char* jsonStr)
 		}
 	}
 		
-	//Save it to the Database.
-	//dbHandler->syncPrefDb(searchListObj);
-		
 	Done:
-		if(success)
+		if(root)
 			json_object_put(root);
-		else
-			return false;
-			
-	return true;	
-	
+
+	return success;
 }
 
 json_object* SearchServiceManager::getSearchServiceList() 

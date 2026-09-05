@@ -22,9 +22,9 @@
 
 #include "Logging.h"
 
-static GStaticMutex s_mutex       = G_STATIC_MUTEX_INIT;
-static bool         s_initialized = false;
-static GHashTable*  s_channelHash = 0;
+static GMutex      s_mutex;
+static bool        s_initialized = false;
+static GHashTable* s_channelHash = NULL;
 
 bool LunaChannelEnabled(const char* channel)
 {
@@ -32,38 +32,32 @@ bool LunaChannelEnabled(const char* channel)
 		return false;
 
 	bool ret = false;
-	
-	g_static_mutex_lock(&s_mutex);
-		
+
+	g_mutex_lock(&s_mutex);
+
 	if (!s_initialized) {
 
 		s_initialized = true;
-		int index = 0;
 
-		s_channelHash = ::g_hash_table_new(g_str_hash, g_str_equal);
-		
-		const char* env = ::getenv("LUNA_LOGGING");
-		if (!env)
-			goto Done;
-		
-		gchar** splitStr = ::g_strsplit(env, ",", 0);
-		if (!splitStr)
-			goto Done;
+		s_channelHash = g_hash_table_new(g_str_hash, g_str_equal);
 
-		while (splitStr[index]) {
-			char* key = ::g_strdup(splitStr[index]);
-			key = g_strstrip(key);
-			g_hash_table_insert(s_channelHash, key, (gpointer)0x1);
-			index++;
+		const char* env = getenv("LUNA_LOGGING");
+		if (env) {
+			gchar** splitStr = g_strsplit(env, ",", 0);
+			for (int index = 0; splitStr[index]; index++) {
+				// keys stay owned by the hash table for the process lifetime
+				char* key = g_strdup(splitStr[index]);
+				key = g_strstrip(key);
+				g_hash_table_insert(s_channelHash, key, (gpointer)0x1);
+			}
+			g_strfreev(splitStr);
 		}
 	}
 
 	if (g_hash_table_lookup(s_channelHash, channel))
 		ret = true;
 
- Done:	
-
-	g_static_mutex_unlock(&s_mutex);
+	g_mutex_unlock(&s_mutex);
 
 	return ret;
 }

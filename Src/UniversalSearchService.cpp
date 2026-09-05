@@ -33,24 +33,24 @@ static UniversalSearchService* s_instance = 0;
 static const char* s_logChannel = "UniversalSearchService";
 
 //Luna Bus Functions
-static bool cbGetVersion(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbGetUniversalSearchList(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbUpdateSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbAddSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbRemoveSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbReorderSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data);
-//static bool cbGetSearchServiceList(LSHandle* lshandle, LSMessage *message, void *user_data);
-//static bool cbAddSearchService(LSHandle* lshandle, LSMessage *message, void *user_data);
-//static bool cbUpdateSearchService(LSHandle* lshandle, LSMessage *message, void *user_data);
-//static bool cbRemoveSearchService(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbGetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbSetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbGetAllSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbAddOptionalSearchDesc(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbGetOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbClearOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbRemoveOptionalSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data);
-static bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void *user_data);
+static bool cbGetVersion(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbGetUniversalSearchList(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbUpdateSearchItem(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbAddSearchItem(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbRemoveSearchItem(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbReorderSearchItem(LSHandle* lshandle, LSMessage *message, void *);
+//static bool cbGetSearchServiceList(LSHandle* lshandle, LSMessage *message, void *);
+//static bool cbAddSearchService(LSHandle* lshandle, LSMessage *message, void *);
+//static bool cbUpdateSearchService(LSHandle* lshandle, LSMessage *message, void *);
+//static bool cbRemoveSearchService(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbGetSearchPreference(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbSetSearchPreference(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbGetAllSearchPreference(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbAddOptionalSearchDesc(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbGetOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbClearOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbRemoveOptionalSearchItem(LSHandle* lshandle, LSMessage *message, void *);
+static bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void *);
 
 
 /*! \page com_palm_universalsearch Service API com.palm.universalsearch
@@ -72,31 +72,33 @@ static bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void 
  *  - \ref com_palm_universalsearch_update_search_item
  */
 static LSMethod s_methods[]  = {
-	{ "getVersion",		cbGetVersion},
-	{ "getUniversalSearchList", cbGetUniversalSearchList},
-	{ "updateSearchItem", cbUpdateSearchItem},
-	{ "addSearchItem", cbAddSearchItem},
-	{ "removeSearchItem", cbRemoveSearchItem},
-	{ "reorderSearchItem", cbReorderSearchItem},
-	{ "updateAllSearchItems", cbUpdateAllSearchItems},
+	{ "getVersion",		cbGetVersion, LUNA_METHOD_FLAGS_NONE},
+	{ "getUniversalSearchList", cbGetUniversalSearchList, LUNA_METHOD_FLAGS_NONE},
+	{ "updateSearchItem", cbUpdateSearchItem, LUNA_METHOD_FLAGS_NONE},
+	{ "addSearchItem", cbAddSearchItem, LUNA_METHOD_FLAGS_NONE},
+	{ "removeSearchItem", cbRemoveSearchItem, LUNA_METHOD_FLAGS_NONE},
+	{ "reorderSearchItem", cbReorderSearchItem, LUNA_METHOD_FLAGS_NONE},
+	{ "updateAllSearchItems", cbUpdateAllSearchItems, LUNA_METHOD_FLAGS_NONE},
 //	{ "getSearchServiceList", cbGetSearchServiceList},
 //	{ "addSearchService", cbAddSearchService},
 //	{ "updateSearchService", cbUpdateSearchService},
 //	{ "removeSearchService", cbRemoveSearchService},
-	{ "getSearchPreference", cbGetSearchPreference},
-	{ "getAllSearchPreference", cbGetAllSearchPreference},
-	{ "setSearchPreference", cbSetSearchPreference},
-	{ "addOptionalSearchDesc", cbAddOptionalSearchDesc},
-	{ "getOptionalSearchList", cbGetOptionalSearchList},
-	{ "clearOptionalSearchList", cbClearOptionalSearchList},
-	{ "removeOptionalSearchItem", cbRemoveOptionalSearchItem},
-	{0,0}
+	{ "getSearchPreference", cbGetSearchPreference, LUNA_METHOD_FLAGS_NONE},
+	{ "getAllSearchPreference", cbGetAllSearchPreference, LUNA_METHOD_FLAGS_NONE},
+	{ "setSearchPreference", cbSetSearchPreference, LUNA_METHOD_FLAGS_NONE},
+	{ "addOptionalSearchDesc", cbAddOptionalSearchDesc, LUNA_METHOD_FLAGS_NONE},
+	{ "getOptionalSearchList", cbGetOptionalSearchList, LUNA_METHOD_FLAGS_NONE},
+	{ "clearOptionalSearchList", cbClearOptionalSearchList, LUNA_METHOD_FLAGS_NONE},
+	{ "removeOptionalSearchItem", cbRemoveOptionalSearchItem, LUNA_METHOD_FLAGS_NONE},
+	{ NULL, NULL, LUNA_METHOD_FLAGS_NONE }
 };
 
 UniversalSearchService::UniversalSearchService()
+	: searchItemsMgr(NULL)
+	, openSearchHandler(NULL)
+	, m_service(NULL)
+	, m_mainLoop(gMainLoop)
 {
-	m_mainLoop = gMainLoop;
-
 	this->startService();
 }
 
@@ -187,10 +189,11 @@ void UniversalSearchService::startService() {
 void UniversalSearchService::stopService() {
 	LSError lsError;
 	LSErrorInit(&lsError);
-	bool result;
 
-	result = LSUnregister(m_service, &lsError);
-	if (!result)
+	if (!m_service)
+		return;
+
+	if (!LSUnregister(m_service, &lsError))
 		LSErrorFree(&lsError);
 
 	m_service = 0;
@@ -201,7 +204,7 @@ LSHandle* UniversalSearchService::getServiceHandle()
 	return m_service;
 }
 
-std::string UniversalSearchService::getLocale() 
+const std::string& UniversalSearchService::getLocale() const
 {
 	return m_locale;
 }
@@ -252,13 +255,12 @@ Example response for a succesful call:
 }
 \endcode
 */
-bool cbGetVersion(LSHandle* lshandle, LSMessage *message, void *user_data) {
+bool cbGetVersion(LSHandle* lshandle, LSMessage *message, void *) {
 
 	LSError lserror;
-	std::string result;
-	
+
 	LSErrorInit(&lserror);
-		
+
 	json_object* response = json_object_new_object();
 	json_object_object_add (response, "returnValue", json_object_new_boolean (true));
 	json_object_object_add (response, "version", json_object_new_string(VERSION));
@@ -555,9 +557,8 @@ Example response for a succesful call:
 \endcode
 */
 
-bool cbGetUniversalSearchList(LSHandle* lshandle, LSMessage *message, void *user_data) {
+bool cbGetUniversalSearchList(LSHandle* lshandle, LSMessage *message, void *) {
 	LSError lserror;
-	std::string result;
 	bool subscribed = false;
 	std::string defaultSearchEngineValue;
 		
@@ -651,7 +652,7 @@ Example response for a failed call:
 }
 \endcode
 */
-bool cbUpdateSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data) {
+bool cbUpdateSearchItem(LSHandle* lshandle, LSMessage *message, void *) {
 	LSError lserror;
 	json_object* response = json_object_new_object();
 	std::string category;
@@ -669,7 +670,7 @@ bool cbUpdateSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data)
 	}
 		
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
@@ -677,7 +678,7 @@ bool cbUpdateSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data)
 	
 	//check the category key
 	label = json_object_object_get(root, "category");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "category field is missing");
 		success = false;
 		goto Done;
@@ -714,11 +715,9 @@ bool cbUpdateSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data)
 				UniversalSearchService::instance()->postOptionalSearchListChange();
 		}
 		
-		if (root && root)
+		if (root)
 			json_object_put(root);
 		
-		if (label && label)
-			json_object_put(label);
 		
 		json_object_put(response);
 		return true;
@@ -780,7 +779,7 @@ Example response for a failed call:
 }
 \endcode
 */
-bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void *user_data) {
+bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void *) {
 	LSError lserror;
 	json_object* response = json_object_new_object();
 	std::string category;
@@ -798,7 +797,7 @@ bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void *user_d
 	}
 
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
@@ -806,7 +805,7 @@ bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void *user_d
 
 	//check the category key
 	label = json_object_object_get(root, "category");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "category field is missing");
 		success = false;
 		goto Done;
@@ -843,11 +842,9 @@ bool cbUpdateAllSearchItems(LSHandle* lshandle, LSMessage *message, void *user_d
 				UniversalSearchService::instance()->postOptionalSearchListChange();*/
 		}
 
-		if (root && root)
+		if (root)
 			json_object_put(root);
 
-		if (label && label)
-			json_object_put(label);
 
 		json_object_put(response);
 		return true;
@@ -960,7 +957,7 @@ Example response for a failed call:
 \endcode
 */
 
-bool cbAddSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data) {
+bool cbAddSearchItem(LSHandle* lshandle, LSMessage *message, void *) {
 	LSError lserror;
 	json_object* response = json_object_new_object();
 	std::string category;
@@ -979,7 +976,7 @@ bool cbAddSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data) {
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
@@ -987,7 +984,7 @@ bool cbAddSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data) {
 
 	//check the category key
 	label = json_object_object_get(root, "category");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "category field is missing");
 		success = false;
 		goto Done;
@@ -1025,8 +1022,8 @@ bool cbAddSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data) {
 				UniversalSearchService::instance()->postOptionalSearchListChange();
 		}
 		
-		if (label && label)
-			json_object_put(label);
+		if (root)
+			json_object_put(root);
 		
 		json_object_put(response);
 		
@@ -1086,7 +1083,7 @@ Example response for a failed call:
 }
 \endcode
 */
-bool cbRemoveSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data) {
+bool cbRemoveSearchItem(LSHandle* lshandle, LSMessage *message, void *) {
 	LSError lserror;
 	json_object* response = json_object_new_object();
 	std::string category;
@@ -1104,7 +1101,7 @@ bool cbRemoveSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data)
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
@@ -1112,7 +1109,7 @@ bool cbRemoveSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data)
 	
 	//check the category key
 	label = json_object_object_get(root, "category");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "category field is missing");
 		success = false;
 		goto Done;
@@ -1150,8 +1147,6 @@ bool cbRemoveSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data)
 				UniversalSearchService::instance()->postOptionalSearchListChange();
 		}
 		
-		if (label && label)
-			json_object_put(label);
 		
 		
 	return true;
@@ -1212,7 +1207,7 @@ Example response for a failed call:
 }
 \endcode
 */
-bool cbReorderSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data) 
+bool cbReorderSearchItem(LSHandle* lshandle, LSMessage *message, void *) 
 {
 	LSError lserror;
 	json_object* response = json_object_new_object();
@@ -1231,7 +1226,7 @@ bool cbReorderSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
@@ -1239,7 +1234,7 @@ bool cbReorderSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data
 	
 	//check the category key
 	label = json_object_object_get(root, "category");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "category field is missing");
 		success = false;
 		goto Done;
@@ -1275,8 +1270,6 @@ bool cbReorderSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data
 			UniversalSearchService::instance()->postSearchListChange("reorder");
 		}
 		
-		if (label && label)
-			json_object_put(label);
 		
 	return true;
 
@@ -1376,7 +1369,7 @@ Example response for a failed call:
 \endcode
 */
 
-bool cbGetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_data)
+bool cbGetSearchPreference(LSHandle* lshandle, LSMessage *message, void *)
 {
 	LSError lserror;
 	std::string key;
@@ -1398,7 +1391,7 @@ bool cbGetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_da
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
@@ -1406,7 +1399,7 @@ bool cbGetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_da
 	
 	//check the category key
 	label = json_object_object_get(root, "key");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "key field is missing");
 		success = false;
 		goto Done;
@@ -1485,11 +1478,9 @@ Example response for a succesful call:
 \endcode
 */
 
-bool cbGetAllSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_data)
+bool cbGetAllSearchPreference(LSHandle* lshandle, LSMessage *message, void *)
 {
 	LSError lserror;
-	std::string key;
-	std::string value;
 	bool subscribed = false;
 	bool success = true;
 		
@@ -1507,12 +1498,12 @@ bool cbGetAllSearchPreference(LSHandle* lshandle, LSMessage *message, void *user
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
 	}
-	value = UniversalSearchPrefsDb::instance()->getAllSearchPreference(response);
+	success = UniversalSearchPrefsDb::instance()->getAllSearchPreference(response);
 
 	if (LSMessageIsSubscription(message)) {		
 		if (!LSSubscriptionAdd(lshandle, "getAllSearchPreference",
@@ -1588,7 +1579,7 @@ Example response for a failed call:
 }
 \endcode
 */
-bool cbSetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_data)
+bool cbSetSearchPreference(LSHandle* lshandle, LSMessage *message, void *)
 {
 	LSError lserror;
 	std::string key;
@@ -1610,7 +1601,7 @@ bool cbSetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_da
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "unable to parse the json message");
 		success = false;
 		goto Done;
@@ -1618,7 +1609,7 @@ bool cbSetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_da
 	
 	//check the key
 	label = json_object_object_get(root, "key");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "key field is missing");
 		success = false;
 		goto Done;
@@ -1626,7 +1617,7 @@ bool cbSetSearchPreference(LSHandle* lshandle, LSMessage *message, void *user_da
 	key = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "value");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "value field is missing");
 		success = false;
 		goto Done;
@@ -1721,7 +1712,7 @@ void UniversalSearchService::postServiceListChange()
 	json_object_put(response);
 }
 
-bool cbGetSearchServiceList(LSHandle* lshandle, LSMessage *message, void *user_data) 
+bool cbGetSearchServiceList(LSHandle* lshandle, LSMessage *message, void *) 
 {
 	LSError lserror;
 	bool subscribed = false;
@@ -1753,7 +1744,7 @@ bool cbGetSearchServiceList(LSHandle* lshandle, LSMessage *message, void *user_d
 	return true;
 }
 
-bool cbAddSearchService(LSHandle* lshandle, LSMessage *message, void *user_data) 
+bool cbAddSearchService(LSHandle* lshandle, LSMessage *message, void *) 
 {
 	LSError lserror;
 	json_object* response = json_object_new_object();
@@ -1794,7 +1785,7 @@ bool cbAddSearchService(LSHandle* lshandle, LSMessage *message, void *user_data)
 		return true;
 }
 
-static bool cbUpdateSearchService(LSHandle* lshandle, LSMessage *message, void *user_data)
+static bool cbUpdateSearchService(LSHandle* lshandle, LSMessage *message, void *)
 {
 	LSError lserror;
 	json_object* response = json_object_new_object();
@@ -1835,7 +1826,7 @@ static bool cbUpdateSearchService(LSHandle* lshandle, LSMessage *message, void *
 		return true;
 }
 
-static bool cbRemoveSearchService(LSHandle* lshandle, LSMessage *message, void *user_data)
+static bool cbRemoveSearchService(LSHandle* lshandle, LSMessage *message, void *)
 {
 	LSError lserror;
 	json_object* response = json_object_new_object();
@@ -1874,7 +1865,7 @@ static bool cbRemoveSearchService(LSHandle* lshandle, LSMessage *message, void *
 	return true;
 }
 */
-bool UniversalSearchService::cbSysServiceBusStatusNotification(LSHandle* lshandle, LSMessage *message, void *user_data)
+bool UniversalSearchService::cbSysServiceBusStatusNotification(LSHandle*, LSMessage *message, void *)
 {
 	LSError lsError;
 	LSErrorInit(&lsError);
@@ -1885,10 +1876,8 @@ bool UniversalSearchService::cbSysServiceBusStatusNotification(LSHandle* lshandl
 		return false;
 	
 	root = json_tokener_parse(payload);
-	if ((root == NULL) || (!root)) {
-		root = NULL;
+	if (root == NULL)
 		return true;
-	}
 
 	json_object * label = json_object_object_get(root,"connected");
 	if (label != NULL)
@@ -1909,14 +1898,14 @@ bool UniversalSearchService::cbSysServiceBusStatusNotification(LSHandle* lshandl
 		luna_critical(s_logChannel, "Registration Status message parsing error");
 	}
 	
-	if (root && root)
+	if (root)
 		json_object_put(root);
 	
 	return true;
 	
 }
 
-bool UniversalSearchService::cbGetLocalePref(LSHandle* lshandle, LSMessage *message,void *user_data)
+bool UniversalSearchService::cbGetLocalePref(LSHandle*, LSMessage *message,void *)
 {
 	LSError lserror;
 	LSErrorInit(&lserror);
@@ -1928,7 +1917,6 @@ bool UniversalSearchService::cbGetLocalePref(LSHandle* lshandle, LSMessage *mess
 	const char* languageCode = NULL;
 	const char* countryCode = NULL;
 	std::string newLocale;
-	std::string newLocaleRegion;
 	
 	bool success = true;
 	
@@ -1939,22 +1927,27 @@ bool UniversalSearchService::cbGetLocalePref(LSHandle* lshandle, LSMessage *mess
 	}
 
 	root = json_tokener_parse(payload);
-	if (!root || !root) {
+	if (!root) {
 		success = false;
 		goto Done;
 	}
 	
 	value = json_object_object_get(root, "locale");
-	if ((value) && (value)) {
+	if (value) {
 		
 		label = json_object_object_get(value, "languageCode");
-		if ((label) && (label)) {
+		if (label) {
 			languageCode = json_object_get_string(label);
 		}
 
 		label = json_object_object_get(value, "countryCode");
-		if ((label) && (label)) {
+		if (label) {
 			countryCode = json_object_get_string(label);
+		}
+
+		if (!languageCode || !countryCode) {
+			success = false;
+			goto Done;
 		}
 
 		newLocale = languageCode;
@@ -1976,7 +1969,7 @@ bool UniversalSearchService::cbGetLocalePref(LSHandle* lshandle, LSMessage *mess
 		if(!success)
 			newLocale = "en_us"; //default locale...
 		
-		if (root && root)
+		if (root)
 			json_object_put(root);
 	
 		//First time query. m_locale is empty.
@@ -2001,7 +1994,7 @@ bool UniversalSearchService::cbGetLocalePref(LSHandle* lshandle, LSMessage *mess
 	return true;
 }
 
-bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle* lshandle, LSMessage *message,void *user_data) 
+bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle*, LSMessage *message,void *) 
 {
 	
 	LSError lsError;
@@ -2013,10 +2006,8 @@ bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle* lshandle, L
 		return false;
 	
 	root = json_tokener_parse(payload);
-	if ((root == NULL) || (!root)) {
-		root = NULL;
+	if (root == NULL)
 		return true;
-	}
 
 	json_object * label = json_object_object_get(root,"connected");
 	if (label != NULL)
@@ -2037,13 +2028,13 @@ bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle* lshandle, L
 		luna_critical(s_logChannel, "Registration Status message parsing error");
 	}
 	
-	if (root && root)
+	if (root)
 		json_object_put(root);
 	
 	return true;
 }
 
-bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *message,void *user_data) 
+bool UniversalSearchService::cbAppMgrAppList(LSHandle*, LSMessage *message,void *) 
 {
 	LSError lserror;
 	LSErrorInit(&lserror);
@@ -2052,7 +2043,6 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 	json_object* app = NULL;
 	json_object* searchInfo = NULL;
 	array_list* apps;
-	std::string emailId;
 	std::string id;
 	std::string icon;
 	bool success = true;
@@ -2065,14 +2055,14 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Unable to parse json content");
 		success = false;
 		goto Done;
 	}
 	
 	label = json_object_object_get(root, "apps");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "apps is missing");
 		success = false;
 		goto Done;
@@ -2084,18 +2074,18 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 		goto Done;
 	}
 	
-	for (int i = 0; i < array_list_length(apps); i++) {
+	for (size_t i = 0; i < (size_t) array_list_length(apps); i++) {
 		json_object* obj = (json_object*) array_list_get_idx(apps, i);
 
 		//Check appId and Vendor defined in the appInfo. If so, copy those properties into UniversalSearch property.
 		label = json_object_object_get(obj, "id");
-		if(!label || !label)
+		if(!label)
 			continue;
 		id = json_object_get_string(label);
 	
 		//check if the appInfo object has UniversalSearch property defined.
 		app = json_object_object_get(obj, "universalSearch");
-		if(!app || !app) {
+		if(!app) {
 			//We need to check whether this app was supporting JustType previously. If yes and exist in the list then remove it.
 			if(UniversalSearchService::instance()->searchItemsMgr->isItemExist(id)) {
 				UniversalSearchService::instance()->searchItemsMgr->removeSearchItem(json_object_get_string(obj));
@@ -2107,18 +2097,18 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 		
 		//Get the icon from app descriptor
 		label = json_object_object_get(obj, "icon");
-		if(label && label)
+		if(label)
 			icon = json_object_get_string(label);
 		
 		//Is Search item exist?
 		searchInfo = json_object_object_get(app, "search");
-		if(searchInfo && searchInfo) {
+		if(searchInfo) {
 			json_object_object_add(searchInfo, "id", json_object_new_string(id.c_str()));
 			//For apps, override the value of "url" property to set AppId value.
 			json_object_object_add(searchInfo, "url", json_object_new_string(id.c_str()));
 			json_object_object_add(searchInfo, "type", json_object_new_string("app"));
 			label = json_object_object_get(searchInfo, "iconFilePath");
-			if(!label || !label) {
+			if(!label) {
 				json_object_object_add(searchInfo, "iconFilePath", json_object_new_string(icon.c_str()));
 			}
 			UniversalSearchService::instance()->searchItemsMgr->addSearchItem(json_object_get_string(searchInfo), true, true,true);
@@ -2126,12 +2116,12 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 		
 		//Is Action item exist?
 		searchInfo = json_object_object_get(app, "action");
-		if(searchInfo && searchInfo) {
+		if(searchInfo) {
 			json_object_object_add(searchInfo, "id", json_object_new_string(id.c_str()));
 			//For apps, override the value of "url" property to set AppId value.
 			json_object_object_add(searchInfo, "url", json_object_new_string(id.c_str()));
 			label = json_object_object_get(searchInfo, "iconFilePath");
-			if(!label || !label) {
+			if(!label) {
 				json_object_object_add(searchInfo, "iconFilePath", json_object_new_string(icon.c_str()));
 			}
 			UniversalSearchService::instance()->searchItemsMgr->addActionProvider(json_object_get_string(searchInfo), true, true, true);
@@ -2139,10 +2129,10 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 		
 		//Is MojoDb Search item exist?
 		searchInfo = json_object_object_get(app, "dbsearch");
-		if(searchInfo && searchInfo) {
+		if(searchInfo) {
 			json_object_object_add(searchInfo, "id", json_object_new_string(id.c_str()));
 			label = json_object_object_get(searchInfo, "iconFilePath");
-			if(!label || !label) {
+			if(!label) {
 				json_object_object_add(searchInfo, "iconFilePath", json_object_new_string(icon.c_str()));
 			}
 			UniversalSearchService::instance()->searchItemsMgr->addDBSearchItem(json_object_get_string(searchInfo), true, true,true);
@@ -2153,7 +2143,7 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 				
 	Done:
 	
-		if (root && root)
+		if (root)
 			json_object_put(root);
 	
 		if(!success) {
@@ -2164,7 +2154,7 @@ bool UniversalSearchService::cbAppMgrAppList(LSHandle* lshandle, LSMessage *mess
 	
 }
 
-bool UniversalSearchService::cbAppInstallerBusStatusNotification(LSHandle* lshandle, LSMessage *message,void *user_data) 
+bool UniversalSearchService::cbAppInstallerBusStatusNotification(LSHandle*, LSMessage *message,void *) 
 {
 	LSError lsError;
 	LSErrorInit(&lsError);
@@ -2175,10 +2165,8 @@ bool UniversalSearchService::cbAppInstallerBusStatusNotification(LSHandle* lshan
 		return false;
 	
 	root = json_tokener_parse(payload);
-	if ((root == NULL) || (!root)) {
-		root = NULL;
+	if (root == NULL)
 		return true;
-	}
 
 	json_object * label = json_object_object_get(root,"connected");
 	if (label != NULL)
@@ -2199,14 +2187,14 @@ bool UniversalSearchService::cbAppInstallerBusStatusNotification(LSHandle* lshan
 		luna_critical(s_logChannel, "Registration Status message parsing error");
 	}
 	
-	if (root && root)
+	if (root)
 		json_object_put(root);
 	
 	return true;
 	
 }
 
-bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle* lshandle, LSMessage *message,void *user_data)
+bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle*, LSMessage *message,void *)
 {
 	json_object* label = NULL; 
 	json_object* root = NULL;
@@ -2226,21 +2214,21 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle* lshandle, LS
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Unable to parse json content");
 		success = false;
 		goto Done;
 	}
 	
 	label = json_object_object_get(root, "statusChange");
-	if(!label || !label) {
+	if(!label) {
 		success = false;
 		goto Done;
 	}
 	status = json_object_get_string(label);
 	
 	label = json_object_object_get(root, "appId");
-	if(!label || !label) {
+	if(!label) {
 		luna_critical(s_logChannel, "appId is missing!");
 		success = false;
 		goto Done;
@@ -2273,10 +2261,10 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle* lshandle, LS
 	
 	Done:
 	
-		if (root && root)
+		if (root)
 			json_object_put(root);
 		
-		if (params && params)
+		if (params)
 			json_object_put(params);
 	
 		if(!success) {
@@ -2287,7 +2275,7 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle* lshandle, LS
 	
 }
 
-bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *message,void *user_data)
+bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle*, LSMessage *message,void *)
 {
 	LSError lserror;
 	LSErrorInit(&lserror);
@@ -2308,14 +2296,14 @@ bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *m
 	}
 	
 	root = json_tokener_parse(payload);
-	if(!root || !root) {
+	if(!root) {
 		luna_critical(s_logChannel, "Unable to parse json content");
 		success = false;
 		goto Done;
 	}
 	
 	appInfo = json_object_object_get(root, "appInfo");
-	if(!appInfo || !appInfo) {
+	if(!appInfo) {
 		luna_critical(s_logChannel, "appInfo is missing");
 		success = false;
 		goto Done;
@@ -2323,7 +2311,7 @@ bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *m
 
 	//Get the AppId.
 	label = json_object_object_get(appInfo, "id");
-	if(!label || !label) {
+	if(!label) {
 		success = false;
 		goto Done;
 	}
@@ -2331,7 +2319,7 @@ bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *m
 	id = json_object_get_string(label);
 
 	searchInfo = json_object_object_get(appInfo, "universalSearch");
-	if(!searchInfo || !searchInfo) {
+	if(!searchInfo) {
 		if(UniversalSearchService::instance()->searchItemsMgr->isItemExist(id)) {
 			//App has been removed. Remove the Search entry from all 3 lists.
 			UniversalSearchService::instance()->searchItemsMgr->removeSearchItem(json_object_get_string(appInfo));
@@ -2348,18 +2336,18 @@ bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *m
 	//Property exist. Check appId and Vendor defined in the appInfo. If so, copy those properties into UniversalSearch property.
 	//Get the icon from app descriptor
 	label = json_object_object_get(appInfo, "icon");
-	if(label && label)
+	if(label)
 		icon = json_object_get_string(label);
 	
 	//Is Search item exist?
 	label = json_object_object_get(searchInfo, "search");
-	if(label && label) {
+	if(label) {
 		json_object_object_add(label, "id", json_object_new_string(id.c_str()));
 		//For apps, override the value of "url" property to set AppId value.
 		json_object_object_add(label, "url", json_object_new_string(id.c_str()));
 		json_object_object_add(label, "type", json_object_new_string("app"));
 		iconProp = json_object_object_get(label, "iconFilePath");
-		if(!iconProp || !iconProp) {
+		if(!iconProp) {
 			json_object_object_add(label, "iconFilePath", json_object_new_string(icon.c_str()));
 		}
 		success = UniversalSearchService::instance()->searchItemsMgr->addSearchItem(json_object_get_string(label), true, true,true);
@@ -2367,12 +2355,12 @@ bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *m
 	
 	//Is Action item exist?
 	label = json_object_object_get(searchInfo, "action");
-	if(label && label) {
+	if(label) {
 		json_object_object_add(label, "id", json_object_new_string(id.c_str()));
 		//For apps, override the value of "url" property to set AppId value.
 		json_object_object_add(label, "url", json_object_new_string(id.c_str()));
 		iconProp = json_object_object_get(label, "iconFilePath");
-		if(!iconProp || !iconProp) {
+		if(!iconProp) {
 			json_object_object_add(label, "iconFilePath", json_object_new_string(icon.c_str()));
 		}
 		success = UniversalSearchService::instance()->searchItemsMgr->addActionProvider(json_object_get_string(label), true, true, true);
@@ -2380,10 +2368,10 @@ bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *m
 	
 	//Is MojoDb Search item exist?
 	label = json_object_object_get(searchInfo, "dbsearch");
-	if(label && label) {
+	if(label) {
 		json_object_object_add(label, "id", json_object_new_string(id.c_str()));
 		iconProp = json_object_object_get(label, "iconFilePath");
-		if(!iconProp || !iconProp) {
+		if(!iconProp) {
 			json_object_object_add(label, "iconFilePath", json_object_new_string(icon.c_str()));
 		}
 		success = UniversalSearchService::instance()->searchItemsMgr->addDBSearchItem(json_object_get_string(label), true, true,true);
@@ -2391,7 +2379,7 @@ bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle* lshandle, LSMessage *m
 	
 	Done:
 	
-		if (root && root)
+		if (root)
 			json_object_put(root);
 	
 		if(!success) {
@@ -2458,7 +2446,7 @@ Example response for a failed call:
 }
 \endcode
 */
-static bool cbAddOptionalSearchDesc(LSHandle* lshandle, LSMessage *message, void *user_data) 
+static bool cbAddOptionalSearchDesc(LSHandle* lshandle, LSMessage *message, void *) 
 {
     LSError lserror;
     LSErrorInit(&lserror);
@@ -2590,7 +2578,7 @@ Example response for a succesful call:
 }
 \endcode
 */
-static bool cbGetOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *user_data)
+static bool cbGetOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *)
 {
     LSError lserror;
     LSErrorInit(&lserror);
@@ -2659,7 +2647,7 @@ Example response for a succesful call:
 }
 \endcode
 */
-static bool cbClearOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *user_data)
+static bool cbClearOptionalSearchList(LSHandle* lshandle, LSMessage *message, void *)
 {
     LSError lserror;
     LSErrorInit(&lserror);
@@ -2769,7 +2757,7 @@ Example response for a failed call:
 }
 \endcode
 */
-static bool cbRemoveOptionalSearchItem(LSHandle* lshandle, LSMessage *message, void *user_data)
+static bool cbRemoveOptionalSearchItem(LSHandle* lshandle, LSMessage *message, void *)
 {
     LSError lserror;
     LSErrorInit(&lserror);
