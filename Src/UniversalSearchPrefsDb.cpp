@@ -29,6 +29,13 @@ static const char* s_logChannel = "UniversalSearchPrefsDb";
 static const char* usp_dbFile = "/var/luna/preferences/universalsearchprefs.db";
 UniversalSearchPrefsDb* UniversalSearchPrefsDb::s_uspDb_instance = 0;
 
+//sqlite3_column_text returns NULL for NULL columns; json_object_new_string must not see NULL.
+static const char* columnTextOrEmpty(sqlite3_stmt* statement, int col)
+{
+	const char* text = (const char*) sqlite3_column_text(statement, col);
+	return text ? text : "";
+}
+
 UniversalSearchPrefsDb* UniversalSearchPrefsDb::instance()
 {
 	
@@ -67,6 +74,8 @@ void UniversalSearchPrefsDb::openUniversalSearchPrefsDb()
 	int ret = sqlite3_open(usp_dbFile, &m_uspDb);
 	if (ret) {
 		g_warning("Failed to open Universal Search Prefs db");
+		sqlite3_close(m_uspDb);
+		m_uspDb = 0;
 		return;
 	}
 	
@@ -84,8 +93,9 @@ void UniversalSearchPrefsDb::openUniversalSearchPrefsDb()
 			" enabled INTEGER, "
 			" version INTEGER, "
 			" PRIMARY KEY(id, category) );", NULL, NULL, NULL);
-	
-	ret = sqlite3_exec(m_uspDb,
+
+	if (!ret)
+		ret = sqlite3_exec(m_uspDb,
 			"CREATE TABLE IF NOT EXISTS DBSearchList "
 			"(id TEXT PRIMARY KEY, "
 			" category TEXT, "
@@ -99,8 +109,9 @@ void UniversalSearchPrefsDb::openUniversalSearchPrefsDb()
 			" batchQuery INTEGER,"
 			" enabled INTEGER, "
 			" version INTEGER );", NULL, NULL, NULL);
-			
-	ret = sqlite3_exec(m_uspDb,
+
+	if (!ret)
+		ret = sqlite3_exec(m_uspDb,
 			"CREATE TABLE IF NOT EXISTS SearchPreference "
 			"(key TEXT NOT NULL ON CONFLICT FAIL UNIQUE ON CONFLICT REPLACE, "
 			" value TEXT);", NULL, NULL, NULL);
@@ -359,46 +370,37 @@ int UniversalSearchPrefsDb::readPrefDb(json_object* searchListJsonObj)
 	}
 
 	ret = sqlite3_step(statement);
-	
+
 	while (ret == SQLITE_ROW) {
 		json_object* root = json_object_new_object();
-		char* res[8];
 		bool enabled;
 		int version;
-		
-		res[0] = (char *)sqlite3_column_text(statement, 0);
-		res[1] = (char *)sqlite3_column_text(statement, 1);
-		res[2] = (char *)sqlite3_column_text(statement, 2);
-		res[3] = (char *)sqlite3_column_text(statement, 3);
-		res[4] = (char *)sqlite3_column_text(statement, 4);
-		res[5] = (char *)sqlite3_column_text(statement, 5);
-		res[6] = (char *)sqlite3_column_text(statement, 6);
-		res[7] = (char *)sqlite3_column_text(statement, 7);
-		
-		json_object_object_add(root, "id", json_object_new_string(res[0]));
-		json_object_object_add(root, "category", json_object_new_string(res[1]));
-		json_object_object_add(root, "displayName", json_object_new_string(res[2]));
-		json_object_object_add(root, "iconFilePath", json_object_new_string(res[3]));
-		json_object_object_add(root, "url", json_object_new_string(res[4]));
-		json_object_object_add(root, "suggestURL", json_object_new_string(res[5]));
-		json_object_object_add(root, "launchParam", json_object_new_string(res[6]));
-		json_object_object_add(root, "type", json_object_new_string(res[7]));
-		 
-		enabled = (((int) sqlite3_column_int(statement, 8)) == 1) ? true : false;
-		
-		
+
+		json_object_object_add(root, "id", json_object_new_string(columnTextOrEmpty(statement, 0)));
+		json_object_object_add(root, "category", json_object_new_string(columnTextOrEmpty(statement, 1)));
+		json_object_object_add(root, "displayName", json_object_new_string(columnTextOrEmpty(statement, 2)));
+		json_object_object_add(root, "iconFilePath", json_object_new_string(columnTextOrEmpty(statement, 3)));
+		json_object_object_add(root, "url", json_object_new_string(columnTextOrEmpty(statement, 4)));
+		json_object_object_add(root, "suggestURL", json_object_new_string(columnTextOrEmpty(statement, 5)));
+		json_object_object_add(root, "launchParam", json_object_new_string(columnTextOrEmpty(statement, 6)));
+		json_object_object_add(root, "type", json_object_new_string(columnTextOrEmpty(statement, 7)));
+
+		enabled = (sqlite3_column_int(statement, 8) == 1);
 		json_object_object_add(root, "enabled", json_object_new_boolean(enabled));
-		
+
 		version = (int) sqlite3_column_int(statement, 9);
 		json_object_object_add(root, "version", json_object_new_int(version));
 
-		json_object_array_add(searchListJsonObj, json_object_get(root));
+		json_object_array_add(searchListJsonObj, root);
 		numOfRows++;
 		ret = sqlite3_step(statement);
 	}
-	
+
+	sqlite3_finalize(statement);
+	statement = 0;
+
 	queryStr = (char *) "SELECT * FROM DBSEARCHLIST";
-	
+
 	ret = sqlite3_prepare(m_uspDb, queryStr, -1, &statement, &tail);
 	if (ret) {
 		luna_critical (s_logChannel, "Failed to prepare sql statement: %s", queryStr);
@@ -409,41 +411,29 @@ int UniversalSearchPrefsDb::readPrefDb(json_object* searchListJsonObj)
 	
 	while (ret == SQLITE_ROW) {
 		json_object* root = json_object_new_object();
-		char* res[10];
 		bool enabled, batchQuery;
 		int version;
-		
-		res[0] = (char *)sqlite3_column_text(statement, 0);
-		res[1] = (char *)sqlite3_column_text(statement, 1);
-		res[2] = (char *)sqlite3_column_text(statement, 2);
-		res[3] = (char *)sqlite3_column_text(statement, 3);
-		res[4] = (char *)sqlite3_column_text(statement, 4);
-		res[5] = (char *)sqlite3_column_text(statement, 5);
-		res[6] = (char *)sqlite3_column_text(statement, 6);
-		res[7] = (char *)sqlite3_column_text(statement, 7);
-		res[8] = (char *)sqlite3_column_text(statement, 8);
-		res[9] = (char *)sqlite3_column_text(statement, 9);
-		
-		json_object_object_add(root, "id", json_object_new_string(res[0]));
-		json_object_object_add(root, "category", json_object_new_string(res[1]));
-		json_object_object_add(root, "displayName", json_object_new_string(res[2]));
-		json_object_object_add(root, "iconFilePath", json_object_new_string(res[3]));
-		json_object_object_add(root, "url", json_object_new_string(res[4]));
-		json_object_object_add(root, "launchParam", json_object_new_string(res[5]));
-		json_object_object_add(root, "launchParamDbField", json_object_new_string(res[6]));
-		json_object_object_add(root, "dbQuery", json_object_new_string(res[7]));
-		json_object_object_add(root, "displayFields", json_object_new_string(res[8]));
-		
-		batchQuery = (((int) sqlite3_column_int(statement, 9)) == 1) ? true : false;
-		enabled = (((int) sqlite3_column_int(statement, 10)) == 1) ? true : false;
-		
+
+		json_object_object_add(root, "id", json_object_new_string(columnTextOrEmpty(statement, 0)));
+		json_object_object_add(root, "category", json_object_new_string(columnTextOrEmpty(statement, 1)));
+		json_object_object_add(root, "displayName", json_object_new_string(columnTextOrEmpty(statement, 2)));
+		json_object_object_add(root, "iconFilePath", json_object_new_string(columnTextOrEmpty(statement, 3)));
+		json_object_object_add(root, "url", json_object_new_string(columnTextOrEmpty(statement, 4)));
+		json_object_object_add(root, "launchParam", json_object_new_string(columnTextOrEmpty(statement, 5)));
+		json_object_object_add(root, "launchParamDbField", json_object_new_string(columnTextOrEmpty(statement, 6)));
+		json_object_object_add(root, "dbQuery", json_object_new_string(columnTextOrEmpty(statement, 7)));
+		json_object_object_add(root, "displayFields", json_object_new_string(columnTextOrEmpty(statement, 8)));
+
+		batchQuery = (sqlite3_column_int(statement, 9) == 1);
+		enabled = (sqlite3_column_int(statement, 10) == 1);
+
 		json_object_object_add(root, "batchQuery", json_object_new_boolean(batchQuery));
 		json_object_object_add(root, "enabled", json_object_new_boolean(enabled));
-		
-		version = (int) sqlite3_column_int(statement, 9);
+
+		version = (int) sqlite3_column_int(statement, 11);
 		json_object_object_add(root, "version", json_object_new_int(version));
 
-		json_object_array_add(searchListJsonObj, json_object_get(root));
+		json_object_array_add(searchListJsonObj, root);
 		numOfRows++;
 		ret = sqlite3_step(statement);
 	}
@@ -485,7 +475,7 @@ std::string UniversalSearchPrefsDb::getSearchPreference(const std::string& key)
 
 	ret = sqlite3_step(statement);
 	if (ret == SQLITE_ROW) {
-		result = (char *)sqlite3_column_text(statement, 0);
+		result = columnTextOrEmpty(statement, 0);
 	}
 
 Done:
@@ -553,35 +543,31 @@ bool UniversalSearchPrefsDb::getAllSearchPreference(json_object* searchPrefObj)
 	ret = sqlite3_step(statement);
 
 	while (ret == SQLITE_ROW) {
-	   
-		std::string key;
-		std::string val;
-		
-		key = (char*) sqlite3_column_text(statement, 0);
-		val = (char*) sqlite3_column_text(statement, 1);
 
-		if(key == "databaseversion") {
+		std::string key = columnTextOrEmpty(statement, 0);
+		std::string val = columnTextOrEmpty(statement, 1);
+
+		if(key.empty() || key == "databaseversion") {
 			ret = sqlite3_step(statement);
 			continue;
 		}
 		json_object_object_add(root, key.c_str(), json_object_new_string(val.c_str()));
 		ret = sqlite3_step(statement);
 	}
-	json_object_object_add(searchPrefObj, (char*)"SearchPreference", json_object_get(root));
+	json_object_object_add(searchPrefObj, "SearchPreference", json_object_get(root));
 	result = true;
 
 Done:
 
 	if (statement)
 		sqlite3_finalize(statement);
-	
-	if(root && root)
-		json_object_put(root);
-	
-	return result;    
+
+	json_object_put(root);
+
+	return result;
 }
 
-bool UniversalSearchPrefsDb::syncSearchPreferenceDb(const char* jsonStr) 
+bool UniversalSearchPrefsDb::syncSearchPreferenceDb(const char* jsonStr)
 {
 	json_object* root = json_tokener_parse(jsonStr);
 	json_object* label = NULL;
@@ -590,7 +576,12 @@ bool UniversalSearchPrefsDb::syncSearchPreferenceDb(const char* jsonStr)
 	std::stringstream fileVerString;
 	std::string key;
 	std::string keyExist;
-	
+
+	if(!root) {
+		luna_critical(s_logChannel, "Failed to parse search preference content into json");
+		return false;
+	}
+
 	//Get the version from Database
 	key = "databaseversion";
 	dbVersion = getSearchPreference(key);
@@ -602,10 +593,10 @@ bool UniversalSearchPrefsDb::syncSearchPreferenceDb(const char* jsonStr)
 	
 	//Get the version from object if exist
 	label = json_object_object_get(root, "version");
-	if(!label || !label) {
+	if(!label) {
 		fileVersion = 0;
 	}
-	else 
+	else
 		fileVersion = json_object_get_int(label);
 	
 	fileVerString << fileVersion;
@@ -628,23 +619,25 @@ bool UniversalSearchPrefsDb::syncSearchPreferenceDb(const char* jsonStr)
 		if(keyExist.empty() || atoi(dbVersion.c_str()) < fileVersion) {
 			setSearchPreference(keyStr, json_object_get_string(val));
 		}
-		
+
 	}
-	
+
+	json_object_put(root);
+
 	return true;
 }
 
 bool UniversalSearchPrefsDb::purgeDatabase() {
-	
-	
-	int ret = sqlite3_exec(m_uspDb, "DROP TABLE SearchList", NULL, NULL, NULL);
-	
-	ret = sqlite3_exec(m_uspDb, "DROP TABLE DBSearchList", NULL, NULL, NULL);
-	
-	ret = sqlite3_exec(m_uspDb, "DROP TABLE SearchPreference", NULL, NULL, NULL);
-	
+
+	if (!m_uspDb)
+		return false;
+
+	sqlite3_exec(m_uspDb, "DROP TABLE IF EXISTS SearchList", NULL, NULL, NULL);
+	sqlite3_exec(m_uspDb, "DROP TABLE IF EXISTS DBSearchList", NULL, NULL, NULL);
+	sqlite3_exec(m_uspDb, "DROP TABLE IF EXISTS SearchPreference", NULL, NULL, NULL);
+
 	closeUniversalSearchPrefsDb();
-	
+
 	return true;
 }
 

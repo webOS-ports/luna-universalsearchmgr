@@ -22,6 +22,10 @@
 #include <string>
 #include <map>
 
+#include <glib.h>
+#include <json.h>
+#include <luna-service2/lunaservice.h>
+
 class OpenSearchHandler {
     public:
 	static OpenSearchHandler* instance();
@@ -36,16 +40,16 @@ class OpenSearchHandler {
 
 	bool	parseXml (const std::string& xmlFile, bool scanningDir);
 	bool	downloadXml (LSHandle* lshandle, const std::string& xmlUrl);
-	const char* 	downloadIcon (const std::string& imageUrl);
-	const char* 	parseImage(const std::string& id, const std::string& imageData);
+	std::string 	downloadIcon (const std::string& imageUrl);
+	std::string 	parseImage(const std::string& id, const std::string& imageData);
 	gchar* 	unescapeString (const gchar *escaped, gsize& size);
-	bool 	checkForDuplication(std::string& xmlFileName);
+	bool 	checkForDuplication(const std::string& xmlFileName);
 	int 	getOptionalListSize();
-	bool 	notifyOpenSearchItemAvailable(std::string& displayName);
+	bool 	notifyOpenSearchItemAvailable(const std::string& displayName);
 
 	json_object*	getOpenSearchList();
 	bool		clearOpenSearchList();
-	bool		clearOpenSearchItem (const std::string id);
+	bool		clearOpenSearchItem (const std::string& id);
 
 	static bool cbDownloadManagerUpdate(LSHandle* lshandle, LSMessage *message, void *user_data);
 	static bool cbDownloadManagerIconUpdate(LSHandle* lshandle, LSMessage *message, void *user_data);

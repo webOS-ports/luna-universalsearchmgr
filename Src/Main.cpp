@@ -16,18 +16,17 @@
 //
 // LICENSE@@@
 
-#include<cstdlib>
-#include<glib.h>
+#include <cstdlib>
+#include <glib.h>
 
 #include "UniversalSearchService.h"
 
 GMainLoop* gMainLoop = NULL;
 
-int main( int argc, char** argv)
+int main()
 {
     gMainLoop = g_main_loop_new (NULL, FALSE);
-    g_thread_init(NULL);
-   
+
     // Initialize the Universal Search Manager
     UniversalSearchService::instance();
 

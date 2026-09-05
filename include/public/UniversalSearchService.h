@@ -37,10 +37,7 @@ class UniversalSearchService {
 	
 public:
 	static UniversalSearchService* instance();
-	static sqlite3* m_gsDb;
-	
-	char* trim(char* s);
-	
+
 	SearchItemsManager* searchItemsMgr;
 	//SearchServiceManager* searchServiceMgr; //Currently, not being used.
 	OpenSearchHandler* openSearchHandler;
@@ -63,7 +60,7 @@ public:
 	static bool cbSysServiceBusStatusNotification(LSHandle* lshandle, LSMessage *message,void *user_data);
 	static bool cbGetLocalePref(LSHandle* lshandle, LSMessage *message,void *user_data);
 	
-	std::string getLocale();
+	const std::string& getLocale() const;
 	void setLocale(const std::string& locale);
 	
 	LSHandle* getServiceHandle();
@@ -75,8 +72,7 @@ private:
 	void startService();
 	void stopService();
 	void postInit();
-		
-	std::string m_version;
+
 	std::string m_locale;
 	
 	LSHandle * m_service;

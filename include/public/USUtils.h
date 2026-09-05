@@ -32,7 +32,6 @@ namespace USUtils {
 
 char* readFile(const char* filePath);
 bool doesExistOnFilesystem(const char * pathAndFile);
-gboolean compare_regex (const gchar * regex,const gchar * string);
 int getUniqueId();
 bool getServiceDomainPart(const std::string& url, std::string& domainPart);
 void initRandomGenerator();
