@@ -98,6 +98,7 @@ UniversalSearchService::UniversalSearchService()
 	, openSearchHandler(NULL)
 	, m_service(NULL)
 	, m_mainLoop(gMainLoop)
+	, m_listAppsToken(LSMESSAGE_TOKEN_INVALID)
 {
 	this->startService();
 }
@@ -120,8 +121,9 @@ void UniversalSearchService::postInit() {
 	LSError lsError;
 	LSErrorInit(&lsError);
 
+	//Watch SAM, the service the app list actually comes from (listApps, getAppInfo).
 	result = LSCall(m_service, "palm://com.palm.bus/signal/registerServerStatus",
-			    "{\"serviceName\":\"com.palm.applicationManager\", \"subscribe\":true}",
+			    "{\"serviceName\":\"com.webos.service.applicationManager\", \"subscribe\":true}",
 			    UniversalSearchService::cbAppMgrBusStatusNotification, this, NULL, &lsError);
 
 	if (!result) {
@@ -1996,7 +1998,6 @@ bool UniversalSearchService::cbGetLocalePref(LSHandle*, LSMessage *message,void 
 
 bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle*, LSMessage *message,void *) 
 {
-	
 	LSError lsError;
 	LSErrorInit(&lsError);
 	
@@ -2012,12 +2013,24 @@ bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle*, LSMessage 
 	json_object * label = json_object_object_get(root,"connected");
 	if (label != NULL)
 	{
-		if (json_object_get_boolean(label) == true) 
+		UniversalSearchService* self = UniversalSearchService::instance();
+
+		//Drop the subscription to an earlier SAM instance. LS2 keeps an LSCall in its
+		//call map until it is cancelled (a SAM that went away usually removed it already).
+		if (self->m_listAppsToken != LSMESSAGE_TOKEN_INVALID) {
+			if (!LSCallCancel(self->m_service, self->m_listAppsToken, &lsError))
+				LSErrorFree(&lsError);
+			self->m_listAppsToken = LSMESSAGE_TOKEN_INVALID;
+		}
+
+		if (json_object_get_boolean(label)) 
 		{
-			//the application manager is on the bus...make a call to receive list of installed apps.
-			 if (LSCall(UniversalSearchService::instance()->m_service,"luna://com.webos.service.applicationManager/listApps",
-			    		"{}",
-			    		UniversalSearchService::cbAppMgrAppList,NULL,NULL, &lsError) == false) {
+			//SAM is on the bus. Subscribe to its app list: while SAM is still scanning the
+			//first reply carries no "apps", the full list follows when the scan is done,
+			//then one "app" + "change" per installed, updated or removed app.
+			if (!LSCall(self->m_service, "luna://com.webos.service.applicationManager/listApps",
+			    		"{\"subscribe\":true}",
+			    		UniversalSearchService::cbAppMgrAppList, NULL, &self->m_listAppsToken, &lsError)) {
 				luna_critical(s_logChannel, "call to applicationmanager/listApps failed");
 				LSErrorFree(&lsError);
 			} 
@@ -2034,124 +2047,152 @@ bool UniversalSearchService::cbAppMgrBusStatusNotification(LSHandle*, LSMessage 
 	return true;
 }
 
-bool UniversalSearchService::cbAppMgrAppList(LSHandle*, LSMessage *message,void *) 
+bool UniversalSearchService::removeAppProviders(const std::string& appId)
 {
-	LSError lserror;
-	LSErrorInit(&lserror);
-	json_object* label = NULL; 
-	json_object* root = NULL;
-	json_object* app = NULL;
+	SearchItemsManager* mgr = UniversalSearchService::instance()->searchItemsMgr;
+
+	if (!mgr->isItemExist(appId))
+		return false;
+
+	json_object* idObj = json_object_new_object();
+	json_object_object_add(idObj, "id", json_object_new_string(appId.c_str()));
+	const char* idJson = json_object_get_string(idObj);
+	mgr->removeSearchItem(idJson);
+	mgr->removeActionProvider(idJson);
+	mgr->removeDBSearchItem(idJson);
+	json_object_put(idObj);
+
+	return true;
+}
+
+bool UniversalSearchService::updateAppProviders(json_object* appInfo)
+{
+	SearchItemsManager* mgr = UniversalSearchService::instance()->searchItemsMgr;
+	json_object* label = NULL;
 	json_object* searchInfo = NULL;
-	array_list* apps;
+	json_object* item = NULL;
 	std::string id;
 	std::string icon;
-	bool success = true;
+	bool changed = false;
+
+	label = json_object_object_get(appInfo, "id");
+	if (!label || !json_object_is_type(label, json_type_string))
+		return false;
+	id = json_object_get_string(label);
+
+	//check if the appInfo object has UniversalSearch property defined.
+	searchInfo = json_object_object_get(appInfo, "universalSearch");
+	if (!searchInfo || !json_object_is_type(searchInfo, json_type_object)) {
+		//We need to check whether this app was supporting JustType previously. If yes and exist in the list then remove it.
+		return removeAppProviders(id);
+	}
+
+	//Get the icon from app descriptor
+	label = json_object_object_get(appInfo, "icon");
+	if (label)
+		icon = json_object_get_string(label);
+
+	//Is Search item exist?
+	item = json_object_object_get(searchInfo, "search");
+	if (item && json_object_is_type(item, json_type_object)) {
+		json_object_object_add(item, "id", json_object_new_string(id.c_str()));
+		//For apps, override the value of "url" property to set AppId value.
+		json_object_object_add(item, "url", json_object_new_string(id.c_str()));
+		json_object_object_add(item, "type", json_object_new_string("app"));
+		if (!json_object_object_get(item, "iconFilePath"))
+			json_object_object_add(item, "iconFilePath", json_object_new_string(icon.c_str()));
+		if (mgr->addSearchItem(json_object_get_string(item), true, true, true))
+			changed = true;
+	}
+
+	//Is Action item exist?
+	item = json_object_object_get(searchInfo, "action");
+	if (item && json_object_is_type(item, json_type_object)) {
+		json_object_object_add(item, "id", json_object_new_string(id.c_str()));
+		//For apps, override the value of "url" property to set AppId value.
+		json_object_object_add(item, "url", json_object_new_string(id.c_str()));
+		if (!json_object_object_get(item, "iconFilePath"))
+			json_object_object_add(item, "iconFilePath", json_object_new_string(icon.c_str()));
+		if (mgr->addActionProvider(json_object_get_string(item), true, true, true))
+			changed = true;
+	}
+
+	//Is MojoDb Search item exist?
+	item = json_object_object_get(searchInfo, "dbsearch");
+	if (item && json_object_is_type(item, json_type_object)) {
+		json_object_object_add(item, "id", json_object_new_string(id.c_str()));
+		if (!json_object_object_get(item, "iconFilePath"))
+			json_object_object_add(item, "iconFilePath", json_object_new_string(icon.c_str()));
+		if (mgr->addDBSearchItem(json_object_get_string(item), true, true, true))
+			changed = true;
+	}
+
+	return changed;
+}
+
+bool UniversalSearchService::cbAppMgrAppList(LSHandle*, LSMessage *message,void *) 
+{
+	json_object* label = NULL; 
+	json_object* root = NULL;
+	json_object* apps = NULL;
+	json_object* app = NULL;
+	const char* event = "new";
+	bool changed = false;
 	
 	const char* payload = LSMessageGetPayload(message);		
 	if(!payload) {
 		luna_critical(s_logChannel, "Payload is missing");
-		success = false;
-		goto Done;
+		return true;
 	}
 	
 	root = json_tokener_parse(payload);
 	if(!root) {
 		luna_critical(s_logChannel, "Unable to parse json content");
-		success = false;
-		goto Done;
-	}
-	
-	label = json_object_object_get(root, "apps");
-	if(!label) {
-		luna_critical(s_logChannel, "apps is missing");
-		success = false;
-		goto Done;
-	}
-	apps = json_object_get_array(label);
-	if(!apps) {
-		luna_critical(s_logChannel, "unable to get apps array from the payload");
-		success = false;
-		goto Done;
-	}
-	
-	for (size_t i = 0; i < (size_t) array_list_length(apps); i++) {
-		json_object* obj = (json_object*) array_list_get_idx(apps, i);
-
-		//Check appId and Vendor defined in the appInfo. If so, copy those properties into UniversalSearch property.
-		label = json_object_object_get(obj, "id");
-		if(!label)
-			continue;
-		id = json_object_get_string(label);
-	
-		//check if the appInfo object has UniversalSearch property defined.
-		app = json_object_object_get(obj, "universalSearch");
-		if(!app) {
-			//We need to check whether this app was supporting JustType previously. If yes and exist in the list then remove it.
-			if(UniversalSearchService::instance()->searchItemsMgr->isItemExist(id)) {
-				UniversalSearchService::instance()->searchItemsMgr->removeSearchItem(json_object_get_string(obj));
-				UniversalSearchService::instance()->searchItemsMgr->removeActionProvider(json_object_get_string(obj));
-				UniversalSearchService::instance()->searchItemsMgr->removeDBSearchItem(json_object_get_string(obj));
-			}
-			continue;
-		}
-		
-		//Get the icon from app descriptor
-		label = json_object_object_get(obj, "icon");
-		if(label)
-			icon = json_object_get_string(label);
-		
-		//Is Search item exist?
-		searchInfo = json_object_object_get(app, "search");
-		if(searchInfo) {
-			json_object_object_add(searchInfo, "id", json_object_new_string(id.c_str()));
-			//For apps, override the value of "url" property to set AppId value.
-			json_object_object_add(searchInfo, "url", json_object_new_string(id.c_str()));
-			json_object_object_add(searchInfo, "type", json_object_new_string("app"));
-			label = json_object_object_get(searchInfo, "iconFilePath");
-			if(!label) {
-				json_object_object_add(searchInfo, "iconFilePath", json_object_new_string(icon.c_str()));
-			}
-			UniversalSearchService::instance()->searchItemsMgr->addSearchItem(json_object_get_string(searchInfo), true, true,true);
-		}
-		
-		//Is Action item exist?
-		searchInfo = json_object_object_get(app, "action");
-		if(searchInfo) {
-			json_object_object_add(searchInfo, "id", json_object_new_string(id.c_str()));
-			//For apps, override the value of "url" property to set AppId value.
-			json_object_object_add(searchInfo, "url", json_object_new_string(id.c_str()));
-			label = json_object_object_get(searchInfo, "iconFilePath");
-			if(!label) {
-				json_object_object_add(searchInfo, "iconFilePath", json_object_new_string(icon.c_str()));
-			}
-			UniversalSearchService::instance()->searchItemsMgr->addActionProvider(json_object_get_string(searchInfo), true, true, true);
-		}
-		
-		//Is MojoDb Search item exist?
-		searchInfo = json_object_object_get(app, "dbsearch");
-		if(searchInfo) {
-			json_object_object_add(searchInfo, "id", json_object_new_string(id.c_str()));
-			label = json_object_object_get(searchInfo, "iconFilePath");
-			if(!label) {
-				json_object_object_add(searchInfo, "iconFilePath", json_object_new_string(icon.c_str()));
-			}
-			UniversalSearchService::instance()->searchItemsMgr->addDBSearchItem(json_object_get_string(searchInfo), true, true,true);
-		}
+		return true;
 	}
 
-	UniversalSearchService::instance()->searchItemsMgr->checkIntegrity();
-				
-	Done:
-	
-		if (root)
-			json_object_put(root);
-	
-		if(!success) {
-			return false;
+	label = json_object_object_get(root, "returnValue");
+	apps = json_object_object_get(root, "apps");
+	app = json_object_object_get(root, "app");
+	if (label && !json_object_get_boolean(label)) {
+		//SAM refused the call, or went away (LS2 then answers "... is not running");
+		//cbAppMgrBusStatusNotification subscribes again when it is back.
+		luna_critical(s_logChannel, "listApps failed: %s", payload);
+	}
+	else if (apps && json_object_is_type(apps, json_type_array)) {
+		//The full list: once SAM has scanned the apps, and again after SAM restarted.
+		for (size_t i = 0; i < json_object_array_length(apps); i++) {
+			json_object* obj = json_object_array_get_idx(apps, i);
+			if (obj && json_object_is_type(obj, json_type_object))
+				updateAppProviders(obj);
 		}
+		//Drop the providers of apps that are gone (read from the database at start-up).
+		UniversalSearchService::instance()->searchItemsMgr->checkIntegrity();
+		changed = true;
+	}
+	else if (app && json_object_is_type(app, json_type_object)) {
+		//One app was added, updated or removed.
+		json_object* change = json_object_object_get(root, "change");
+		if (change && json_object_is_type(change, json_type_string) && strcmp(json_object_get_string(change), "removed") == 0) {
+			json_object* id = json_object_object_get(app, "id");
+			if (id && json_object_is_type(id, json_type_string))
+				changed = removeAppProviders(json_object_get_string(id));
+			event = "remove";
+		}
+		else {
+			changed = updateAppProviders(app);
+		}
+	}
+	//else: SAM is still scanning; it posts the full list to this subscription when done.
+
+	json_object_put(root);
+
+	if (changed) {
+		luna_critical(s_logChannel, "Posting change notificaiton");
+		UniversalSearchService::instance()->postSearchListChange(event);
+	}
 
 	return true;
-	
 }
 
 bool UniversalSearchService::cbAppInstallerBusStatusNotification(LSHandle*, LSMessage *message,void *) 
@@ -2237,8 +2278,10 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle*, LSMessage *
 	
 	if(status == "INSTALLED") {
 		//get the appInfo.
-		json_object_object_add(params, "appId", json_object_new_string(appId.c_str()));
-		 if (LSCall(UniversalSearchService::instance()->m_service,"luna://com.webos.service.applicationManager/getAppInfo",
+		//SAM's getAppInfo takes "id" (LunaAppManager's took "appId").
+		json_object_object_add(params, "id", json_object_new_string(appId.c_str()));
+		//One reply: a plain LSCall would stay in LS2's call map for good.
+		 if (LSCallOneReply(UniversalSearchService::instance()->m_service,"luna://com.webos.service.applicationManager/getAppInfo",
 				 json_object_to_json_string (params),
 		    		UniversalSearchService::cbAppMgrGetAppInfo,NULL,NULL, &lserror) == false) {
 			luna_critical(s_logChannel, "call to applicationmanager/getAppInfo failed");
@@ -2246,13 +2289,8 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle*, LSMessage *
 		} 
 	}
 	else if(status == "REMOVED") {
-		if(UniversalSearchService::instance()->searchItemsMgr->isItemExist(appId)) {
-			//App has been removed. Remove the Search entry from all 3 lists.
-			json_object_object_add(root, "id", json_object_new_string(appId.c_str()));
-			UniversalSearchService::instance()->searchItemsMgr->removeSearchItem(json_object_get_string(root));
-			UniversalSearchService::instance()->searchItemsMgr->removeActionProvider(json_object_get_string(root));
-			UniversalSearchService::instance()->searchItemsMgr->removeDBSearchItem(json_object_get_string(root));
-			
+		//App has been removed. Remove the Search entry from all 3 lists.
+		if(removeAppProviders(appId)) {
 			luna_critical(s_logChannel, "Posting change notificaiton");
 			UniversalSearchService::instance()->postSearchListChange("remove");
 			
@@ -2277,122 +2315,40 @@ bool UniversalSearchService::cbAppInstallerNotifyOnChange(LSHandle*, LSMessage *
 
 bool UniversalSearchService::cbAppMgrGetAppInfo(LSHandle*, LSMessage *message,void *)
 {
-	LSError lserror;
-	LSErrorInit(&lserror);
-	json_object* label = NULL; 
 	json_object* root = NULL;
 	json_object* appInfo = NULL;
-	json_object* searchInfo = NULL;
-	json_object* iconProp = NULL;
-	std::string id;
-	std::string icon;
-	bool success = true;
+	bool changed = false;
 	
 	const char* payload = LSMessageGetPayload(message);		
 	if(!payload) {
 		luna_critical(s_logChannel, "Payload is missing");
-		success = false;
-		goto Done;
+		return true;
 	}
 	
 	root = json_tokener_parse(payload);
 	if(!root) {
 		luna_critical(s_logChannel, "Unable to parse json content");
-		success = false;
-		goto Done;
+		return true;
 	}
 	
 	appInfo = json_object_object_get(root, "appInfo");
-	if(!appInfo) {
-		luna_critical(s_logChannel, "appInfo is missing");
-		success = false;
-		goto Done;
+	if(appInfo && json_object_is_type(appInfo, json_type_object)) {
+		//Registers the app's providers, or removes them if it no longer declares any.
+		changed = updateAppProviders(appInfo);
+	}
+	else {
+		//Not (yet) known to SAM; the listApps subscription reports it once SAM has scanned it.
+		luna_critical(s_logChannel, "appInfo is missing: %s", payload);
 	}
 
-	//Get the AppId.
-	label = json_object_object_get(appInfo, "id");
-	if(!label) {
-		success = false;
-		goto Done;
-	}
-		
-	id = json_object_get_string(label);
+	json_object_put(root);
 
-	searchInfo = json_object_object_get(appInfo, "universalSearch");
-	if(!searchInfo) {
-		if(UniversalSearchService::instance()->searchItemsMgr->isItemExist(id)) {
-			//App has been removed. Remove the Search entry from all 3 lists.
-			UniversalSearchService::instance()->searchItemsMgr->removeSearchItem(json_object_get_string(appInfo));
-			UniversalSearchService::instance()->searchItemsMgr->removeActionProvider(json_object_get_string(appInfo));
-			UniversalSearchService::instance()->searchItemsMgr->removeDBSearchItem(json_object_get_string(appInfo));
-
-			luna_critical(s_logChannel, "Posting change notificaiton");
-			UniversalSearchService::instance()->postSearchListChange("remove");
-		}
-		success = false;
-		goto Done;
+	if (changed) {
+		luna_critical(s_logChannel, "Posting change notificaiton");
+		UniversalSearchService::instance()->postSearchListChange("new");
 	}
-	
-	//Property exist. Check appId and Vendor defined in the appInfo. If so, copy those properties into UniversalSearch property.
-	//Get the icon from app descriptor
-	label = json_object_object_get(appInfo, "icon");
-	if(label)
-		icon = json_object_get_string(label);
-	
-	//Is Search item exist?
-	label = json_object_object_get(searchInfo, "search");
-	if(label) {
-		json_object_object_add(label, "id", json_object_new_string(id.c_str()));
-		//For apps, override the value of "url" property to set AppId value.
-		json_object_object_add(label, "url", json_object_new_string(id.c_str()));
-		json_object_object_add(label, "type", json_object_new_string("app"));
-		iconProp = json_object_object_get(label, "iconFilePath");
-		if(!iconProp) {
-			json_object_object_add(label, "iconFilePath", json_object_new_string(icon.c_str()));
-		}
-		success = UniversalSearchService::instance()->searchItemsMgr->addSearchItem(json_object_get_string(label), true, true,true);
-	}
-	
-	//Is Action item exist?
-	label = json_object_object_get(searchInfo, "action");
-	if(label) {
-		json_object_object_add(label, "id", json_object_new_string(id.c_str()));
-		//For apps, override the value of "url" property to set AppId value.
-		json_object_object_add(label, "url", json_object_new_string(id.c_str()));
-		iconProp = json_object_object_get(label, "iconFilePath");
-		if(!iconProp) {
-			json_object_object_add(label, "iconFilePath", json_object_new_string(icon.c_str()));
-		}
-		success = UniversalSearchService::instance()->searchItemsMgr->addActionProvider(json_object_get_string(label), true, true, true);
-	}
-	
-	//Is MojoDb Search item exist?
-	label = json_object_object_get(searchInfo, "dbsearch");
-	if(label) {
-		json_object_object_add(label, "id", json_object_new_string(id.c_str()));
-		iconProp = json_object_object_get(label, "iconFilePath");
-		if(!iconProp) {
-			json_object_object_add(label, "iconFilePath", json_object_new_string(icon.c_str()));
-		}
-		success = UniversalSearchService::instance()->searchItemsMgr->addDBSearchItem(json_object_get_string(label), true, true,true);
-	}
-	
-	Done:
-	
-		if (root)
-			json_object_put(root);
-	
-		if(!success) {
-			return false;
-		}
-		else {
-			luna_critical(s_logChannel, "Posting change notificaiton");
-			UniversalSearchService::instance()->postSearchListChange("new");
-		}
 
 	return true;
-	
-	
 }
 
 /*!

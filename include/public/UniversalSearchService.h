@@ -73,10 +73,14 @@ private:
 	void stopService();
 	void postInit();
 
+	static bool updateAppProviders(json_object* appInfo);
+	static bool removeAppProviders(const std::string& appId);
+
 	std::string m_locale;
 	
 	LSHandle * m_service;
 	GMainLoop* m_mainLoop;
+	LSMessageToken m_listAppsToken;
 };
 
 #endif

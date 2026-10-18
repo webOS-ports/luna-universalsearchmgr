@@ -1,0 +1,31 @@
+{
+    "id": "org.webosports.app.justtypetest",
+    "version": "1.0.0",
+    "vendor": "webOS Ports",
+    "type": "web",
+    "main": "index.html",
+    "title": "Just Type Test",
+    "icon": "icon.png",
+    "universalSearch": {
+        "action": {
+            "displayName": "Search Just Type Test",
+            "launchParam": "search",
+            "url": "org.webosports.app.justtypetest"
+        },
+        "dbsearch": {
+            "displayName": "Just Type Test Songs",
+            "url": "org.webosports.app.justtypetest",
+            "launchParam": "target",
+            "launchParamDbField": "path",
+            "displayFields": ["title", "artist"],
+            "dbQuery": {
+                "from": "com.palm.media.audio.file:1",
+                "where": [
+                    {"prop": "isRingtone", "op": "=", "val": false},
+                    {"prop": "searchKey", "op": "?", "val": "", "collate": "primary"}
+                ],
+                "limit": 20
+            }
+        }
+    }
+}
