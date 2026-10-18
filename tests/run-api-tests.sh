@@ -13,6 +13,16 @@
 # The suite snapshots enabled-states and the default search engine at start and
 # restores them at the end, so it is safe to run on a live (test) system.
 # Exit code = number of failed assertions.
+#
+# Two opt-in sections cover how app providers (appinfo.json "universalSearch")
+# get registered from SAM:
+#   SAM_RACE=1  restarts the search manager while SAM is stopped, with the app
+#               providers deleted from its database - the order at boot. Stops
+#               and starts sam.service (and needs sqlite3), so it is opt-in.
+#   JT_IPK=<path on the device>  installs the ipk made by tests/make-test-ipk.sh
+#               through com.webos.appInstallService, expects its providers to
+#               show up, removes it again and expects them gone.
+#   e.g. SAM_RACE=1 JT_IPK=/media/internal/justtypetest.ipk sh run-api-tests.sh
 
 U=luna://com.palm.universalsearch
 FIXTURE_URL="$1"
@@ -48,6 +58,62 @@ section_count() { # section_count <search|action|dbsearch> -- item count in that
 	END {print n+0}'
 }
 
+in_list() { # in_list <search|action|dbsearch> <id> -- is <id> in that list?
+	call getUniversalSearchList '{}'
+	echo "$RESP" | awk -v want="$1" -v id="\"id\": \"$2\"" '
+	/"UniversalSearchList":/ {cat="search"}
+	/"ActionList":/          {cat="action"}
+	/"DBSearchItemList":/    {cat="dbsearch"}
+	index($0, id) {if (cat==want) f=1}
+	END {exit !f}'
+}
+not_in_lists() { # not_in_lists <id>
+	call getUniversalSearchList '{}'
+	! echo "$RESP" | grep -q "\"id\": \"$1\""
+}
+wait_for() { # wait_for <seconds> <command...> -- retry the command once a second
+	n=$1; shift
+	while [ "$n" -gt 0 ]; do "$@" && return 0; sleep 1; n=$((n-1)); done
+	return 1
+}
+declared_apps() { # ids of the installed apps whose appinfo.json has a universalSearch block
+	for f in /usr/palm/applications/*/appinfo.json /media/cryptofs/apps/usr/palm/applications/*/appinfo.json; do
+		[ -f "$f" ] && grep -q '"universalSearch"' "$f" || continue
+		d=${f%/appinfo.json}; echo "${d##*/}"
+	done
+}
+check_declared() { # check_declared <label> -- every declaring app has providers listed
+	NDECL=0
+	for id in $(declared_apps); do
+		NDECL=$((NDECL+1))
+		# SAM may still be scanning: give the first one time to show up
+		[ $NDECL = 1 ] && wait_for 30 in_any "$id"
+		in_any "$id" && report pass "$1: providers of $id registered" || report fail "$1: providers of $id registered"
+	done
+	[ $NDECL -gt 0 ] || report skip "$1: no installed app declares universalSearch"
+}
+in_any() { # in_any <id> -- in the action or dbsearch list (app search items are rare)
+	in_list action "$1" || in_list dbsearch "$1" || in_list search "$1"
+}
+
+# ---------------------------------------------------------------- app providers at boot (opt-in)
+if [ "${SAM_RACE:-0}" = 1 ]; then
+	if command -v sqlite3 >/dev/null 2>&1; then
+		echo "--- SAM_RACE: search manager up before SAM, app providers deleted from its database..."
+		systemctl stop luna-universalsearchmgr
+		sqlite3 /var/luna/preferences/universalsearchprefs.db \
+			"DELETE FROM SearchList WHERE category='action' OR type='app'; DELETE FROM DBSearchList;"
+		systemctl stop sam
+		systemctl start luna-universalsearchmgr
+		wait_for 15 call getVersion '{}'
+		sleep 3
+		systemctl start sam
+		check_declared "search manager started before SAM"
+	else
+		report skip "SAM_RACE (no sqlite3)"
+	fi
+fi
+
 SVC_PID=$(pidof LunaUniversalSearchMgr)
 RSS_BEFORE=$(awk '/VmRSS/{print $2}' /proc/$SVC_PID/status)
 echo "=== universalsearch API test suite; service pid=$SVC_PID rss=${RSS_BEFORE}kB ==="
@@ -73,6 +139,9 @@ has "list has DBSearchItemList array" '"DBSearchItemList":'
 has "list has defaultSearchEngine" '"defaultSearchEngine":'
 call getUniversalSearchList '{"subscribe":true}'
 has "getUniversalSearchList one-shot subscribe" '"subscribed": true'
+
+# ---------------------------------------------------------------- app providers from SAM
+check_declared "installed apps"
 
 # ---------------------------------------------------------------- preferences
 call getSearchPreference '{"key":"defaultSearchEngine"}'
@@ -254,6 +323,36 @@ if [ -n "$FIXTURE_URL" ]; then
 	fi
 else
 	report skip "opensearch pipeline (no fixture URL given)"
+fi
+
+# ---------------------------------------------------------------- app installed after boot (opt-in)
+JTID=org.webosports.app.justtypetest
+if [ -n "$JT_IPK" ] && [ -f "$JT_IPK" ]; then
+	appinst() { # appinst <install|remove> <json> <final state> -- waits up to 60s for it
+		luna-send -i "luna://com.webos.appInstallService/$1" "$2" > /tmp/us-appinst.out 2>&1 &
+		AIPID=$!
+		n=60
+		while [ $n -gt 0 ] && ! grep -q -e "\"state\":\"$3\"" -e '"returnValue":false' /tmp/us-appinst.out; do sleep 1; n=$((n-1)); done
+		kill $AIPID 2>/dev/null; wait $AIPID 2>/dev/null
+		RESP=$(cat /tmp/us-appinst.out)
+		grep -q "\"state\":\"$3\"" /tmp/us-appinst.out
+	}
+	if ! not_in_lists "$JTID"; then # left over from an earlier run
+		appinst remove "{\"id\":\"$JTID\",\"subscribe\":true}" removed
+		wait_for 30 not_in_lists "$JTID"
+	fi
+	echo "--- installing $JT_IPK through appInstallService..."
+	appinst install "{\"id\":\"$JTID\",\"ipkUrl\":\"$JT_IPK\",\"subscribe\":true}" installed \
+		&& report pass "appInstallService installs the test ipk" || report fail "appInstallService installs the test ipk"
+	wait_for 30 in_list action "$JTID" && report pass "installed app: action provider registered" || report fail "installed app: action provider registered"
+	in_list dbsearch "$JTID" && report pass "installed app: dbsearch provider registered" || report fail "installed app: dbsearch provider registered"
+	has "installed app: dbsearch item is the fixture's" '"displayName": "Just Type Test Songs"'
+	appinst remove "{\"id\":\"$JTID\",\"subscribe\":true}" removed \
+		&& report pass "appInstallService removes the test app" || report fail "appInstallService removes the test app"
+	wait_for 30 not_in_lists "$JTID" && report pass "removed app: providers dropped" || report fail "removed app: providers dropped"
+	rm -f /tmp/us-appinst.out
+else
+	report skip "app installed after boot (JT_IPK not given)"
 fi
 
 # ---------------------------------------------------------------- subscription push
